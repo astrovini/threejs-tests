@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Faro</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0a0a0a; overflow: hidden; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #eaebdb; }
+    canvas { display: block; }
+    #panel {
+      position: fixed; top: 16px; right: 16px; width: 240px;
+      background: rgba(20, 20, 20, 0.72);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(234, 235, 219, 0.12);
+      border-radius: 10px; font-size: 11px;
+      user-select: none;
+      touch-action: none;
+    }
+    #panel .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; cursor: grab;
+      border-bottom: 1px solid rgba(234, 235, 219, 0.08);
+    }
+    #panel.dragging .header { cursor: grabbing; }
+    #panel .title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.6; }
+    #panel .toggle {
+      width: 20px; height: 20px; margin: 0; padding: 0;
+      background: transparent; color: #eaebdb; font: inherit;
+      border: 1px solid rgba(234, 235, 219, 0.2); border-radius: 4px;
+      cursor: pointer; line-height: 1; display: flex; align-items: center; justify-content: center;
+      opacity: 0.7;
+    }
+    #panel .toggle:hover { background: rgba(234, 235, 219, 0.08); opacity: 1; }
+    #panel .body { padding: 12px 14px 14px; }
+    #panel.collapsed .body { display: none; }
+    #panel.collapsed .header { border-bottom: none; }
+    #panel .row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+    #panel .label { display: flex; justify-content: space-between; opacity: 0.85; }
+    #panel .val { opacity: 0.6; font-variant-numeric: tabular-nums; }
+    #panel input[type=range] {
+      width: 100%; -webkit-appearance: none; appearance: none;
+      height: 2px; background: rgba(234, 235, 219, 0.2); border-radius: 2px; outline: none;
+    }
+    #panel input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #eaebdb; cursor: pointer; border: none;
+    }
+    #panel input[type=range]::-moz-range-thumb {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #eaebdb; cursor: pointer; border: none;
+    }
+    #panel .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    #panel .check-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    #panel .check-row input[type=checkbox] {
+      -webkit-appearance: none; appearance: none; margin: 0;
+      width: 14px; height: 14px; border-radius: 3px;
+      border: 1px solid rgba(234, 235, 219, 0.3);
+      background: transparent; cursor: pointer; position: relative;
+    }
+    #panel .check-row input[type=checkbox]:checked { background: #eaebdb; border-color: #eaebdb; }
+    #panel .check-row input[type=checkbox]:checked::after {
+      content: ''; position: absolute; left: 4px; top: 1px;
+      width: 3px; height: 7px; border: solid #0a0a0a;
+      border-width: 0 2px 2px 0; transform: rotate(45deg);
+    }
+    #panel input[type=color] {
+      -webkit-appearance: none; appearance: none; border: none; background: none;
+      width: 28px; height: 18px; padding: 0; cursor: pointer;
+    }
+    #panel input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+    #panel input[type=color]::-webkit-color-swatch { border: 1px solid rgba(234, 235, 219, 0.2); border-radius: 3px; }
+    #panel button {
+      width: 100%; margin-top: 4px; padding: 6px;
+      background: transparent; color: #eaebdb; font: inherit;
+      border: 1px solid rgba(234, 235, 219, 0.2); border-radius: 5px;
+      cursor: pointer;
+    }
+    #panel button:hover { background: rgba(234, 235, 219, 0.08); }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="panel">
+    <div class="header" id="panel-header">
+      <span class="title">Controls</span>
+      <button class="toggle" id="panel-toggle" title="Collapse">−</button>
+    </div>
+    <div class="body" id="panel-body">
+      <div class="color-row">
+        <span>Color</span>
+        <input id="color" type="color" value="#eaebdb" />
+      </div>
+      <div class="color-row">
+        <span>Emissive</span>
+        <input id="emissive" type="color" value="#000000" />
+      </div>
+      <div class="check-row">
+        <span>Mouse tilt</span>
+        <input id="tilt" type="checkbox" checked />
+      </div>
+    </div>
+  </div>
+  <script type="module">
+    import * as THREE from 'three';
+    import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0a);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+    camera.position.set(0, 0, 800);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const key = new THREE.DirectionalLight(0xffffff, 1.2);
+    key.position.set(300, 400, 500);
+    scene.add(key);
+
+    const pivot = new THREE.Group();
+    scene.add(pivot);
+
+    const logoGroup = new THREE.Group();
+    logoGroup.scale.y = -1;
+    pivot.add(logoGroup);
+
+    const material = new THREE.MeshPhysicalMaterial({
+      color: 0xeaebdb,
+      metalness: 0.2,
+      roughness: 0.4,
+      clearcoat: 0,
+      clearcoatRoughness: 0.2,
+      emissive: 0x000000,
+      emissiveIntensity: 1,
+    });
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.enablePan = false;
+    controls.minDistance = 200;
+    controls.maxDistance = 1800;
+
+    const defaults = {
+      depth: 120,
+      bevelThickness: 22,
+      bevelSize: 16,
+      bevelSegments: 16,
+      curveSegments: 48,
+      bevelOffset: 0,
+      steps: 1,
+      metalness: 0.2,
+      roughness: 0.4,
+      clearcoat: 0,
+      clearcoatRoughness: 0.2,
+      emissiveIntensity: 1,
+      logoSize: 500,
+      color: '#eaebdb',
+      emissiveColor: '#000000',
+      tiltEnabled: true,
+    };
+    const params = { ...defaults };
+
+    let shapesCache = [];
+
+    function fitLogo() {
+      pivot.scale.setScalar(1);
+      logoGroup.position.set(0, 0, 0);
+      pivot.updateMatrixWorld(true);
+
+      const box = new THREE.Box3().setFromObject(logoGroup);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      logoGroup.position.set(-center.x, -center.y, -center.z);
+
+      if (size.y > 0) pivot.scale.setScalar(params.logoSize / size.y);
+    }
+
+    function rebuildGeometry() {
+      for (const child of logoGroup.children) child.geometry?.dispose();
+      logoGroup.clear();
+
+      for (const shape of shapesCache) {
+        const geometry = new THREE.ExtrudeGeometry(shape, {
+          depth: params.depth,
+          bevelEnabled: true,
+          bevelThickness: params.bevelThickness,
+          bevelSize: params.bevelSize,
+          bevelOffset: params.bevelOffset,
+          bevelSegments: Math.max(1, Math.round(params.bevelSegments)),
+          curveSegments: Math.max(4, Math.round(params.curveSegments)),
+          steps: Math.max(1, Math.round(params.steps)),
+        });
+        logoGroup.add(new THREE.Mesh(geometry, material));
+      }
+
+      fitLogo();
+    }
+
+    const loader = new SVGLoader();
+    loader.load('faro_logo.svg', (data) => {
+      for (const path of data.paths) {
+        for (const shape of SVGLoader.createShapes(path)) {
+          shapesCache.push(shape);
+        }
+      }
+      rebuildGeometry();
+    });
+
+    const sliders = [
+      { key: 'depth', label: 'Depth', min: 0, max: 400, step: 1 },
+      { key: 'bevelThickness', label: 'Bevel Thickness', min: 0, max: 80, step: 0.5 },
+      { key: 'bevelSize', label: 'Bevel Size', min: 0, max: 40, step: 0.5 },
+      { key: 'bevelOffset', label: 'Bevel Offset', min: -20, max: 20, step: 0.5 },
+      { key: 'bevelSegments', label: 'Bevel Segments', min: 1, max: 24, step: 1 },
+      { key: 'curveSegments', label: 'Curve Segments', min: 4, max: 64, step: 1 },
+      { key: 'steps', label: 'Extrude Steps', min: 1, max: 10, step: 1 },
+      { key: 'logoSize', label: 'Logo Size', min: 100, max: 1000, step: 10 },
+      { key: 'metalness', label: 'Metalness', min: 0, max: 1, step: 0.01 },
+      { key: 'roughness', label: 'Roughness', min: 0, max: 1, step: 0.01 },
+      { key: 'clearcoat', label: 'Clearcoat', min: 0, max: 1, step: 0.01 },
+      { key: 'clearcoatRoughness', label: 'Clearcoat Rough.', min: 0, max: 1, step: 0.01 },
+      { key: 'emissiveIntensity', label: 'Emissive Int.', min: 0, max: 2, step: 0.01 },
+    ];
+
+    const materialOnlyKeys = new Set(['metalness', 'roughness', 'clearcoat', 'clearcoatRoughness', 'emissiveIntensity']);
+
+    const panel = document.getElementById('panel');
+    const panelBody = document.getElementById('panel-body');
+    const sliderInputs = {};
+    const valueEls = {};
+    const fmt = (v, step) => Number(v).toFixed(step < 1 ? 2 : 0);
+
+    for (const s of sliders) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `
+        <div class="label"><span>${s.label}</span><span class="val"></span></div>
+        <input type="range" min="${s.min}" max="${s.max}" step="${s.step}" value="${params[s.key]}" />
+      `;
+      panelBody.appendChild(row);
+      const input = row.querySelector('input');
+      const val = row.querySelector('.val');
+      sliderInputs[s.key] = input;
+      valueEls[s.key] = val;
+      val.textContent = fmt(params[s.key], s.step);
+      input.addEventListener('input', () => {
+        const v = parseFloat(input.value);
+        params[s.key] = v;
+        val.textContent = fmt(v, s.step);
+        if (materialOnlyKeys.has(s.key)) material[s.key] = v;
+        else if (s.key === 'logoSize') fitLogo();
+        else rebuildGeometry();
+      });
+    }
+
+    const colorInput = document.getElementById('color');
+    colorInput.addEventListener('input', (e) => {
+      params.color = e.target.value;
+      material.color.set(e.target.value);
+    });
+
+    const emissiveInput = document.getElementById('emissive');
+    emissiveInput.addEventListener('input', (e) => {
+      params.emissiveColor = e.target.value;
+      material.emissive.set(e.target.value);
+    });
+
+    const tiltInput = document.getElementById('tilt');
+    tiltInput.addEventListener('change', (e) => {
+      params.tiltEnabled = e.target.checked;
+    });
+
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = 'Copy Settings';
+    panelBody.appendChild(copyBtn);
+    copyBtn.addEventListener('click', () => {
+      const snippet = JSON.stringify(params, null, 2);
+      navigator.clipboard?.writeText(snippet);
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => (copyBtn.textContent = 'Copy Settings'), 1200);
+    });
+
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = 'Reset';
+    panelBody.appendChild(resetBtn);
+    resetBtn.addEventListener('click', () => {
+      Object.assign(params, defaults);
+      for (const s of sliders) {
+        sliderInputs[s.key].value = params[s.key];
+        valueEls[s.key].textContent = fmt(params[s.key], s.step);
+      }
+      material.metalness = params.metalness;
+      material.roughness = params.roughness;
+      material.clearcoat = params.clearcoat;
+      material.clearcoatRoughness = params.clearcoatRoughness;
+      material.emissiveIntensity = params.emissiveIntensity;
+      material.color.set(params.color);
+      material.emissive.set(params.emissiveColor);
+      colorInput.value = params.color;
+      emissiveInput.value = params.emissiveColor;
+      tiltInput.checked = params.tiltEnabled;
+      camera.position.set(0, 0, 800);
+      controls.target.set(0, 0, 0);
+      controls.update();
+      rebuildGeometry();
+    });
+
+    const panelHeader = document.getElementById('panel-header');
+    const panelToggle = document.getElementById('panel-toggle');
+
+    panelToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const collapsed = panel.classList.toggle('collapsed');
+      panelToggle.textContent = collapsed ? '+' : '−';
+      panelToggle.title = collapsed ? 'Expand' : 'Collapse';
+    });
+
+    let dragState = null;
+    panelHeader.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.toggle')) return;
+      const rect = panel.getBoundingClientRect();
+      panel.style.left = rect.left + 'px';
+      panel.style.top = rect.top + 'px';
+      panel.style.right = 'auto';
+      dragState = { dx: e.clientX - rect.left, dy: e.clientY - rect.top, id: e.pointerId };
+      panelHeader.setPointerCapture(e.pointerId);
+      panel.classList.add('dragging');
+    });
+    panelHeader.addEventListener('pointermove', (e) => {
+      if (!dragState || e.pointerId !== dragState.id) return;
+      const maxX = window.innerWidth - panel.offsetWidth;
+      const maxY = window.innerHeight - panel.offsetHeight;
+      const x = Math.max(0, Math.min(maxX, e.clientX - dragState.dx));
+      const y = Math.max(0, Math.min(maxY, e.clientY - dragState.dy));
+      panel.style.left = x + 'px';
+      panel.style.top = y + 'px';
+    });
+    const endDrag = (e) => {
+      if (!dragState || e.pointerId !== dragState.id) return;
+      panelHeader.releasePointerCapture(dragState.id);
+      dragState = null;
+      panel.classList.remove('dragging');
+    };
+    panelHeader.addEventListener('pointerup', endDrag);
+    panelHeader.addEventListener('pointercancel', endDrag);
+
+    const mouse = { x: 0, y: 0 };
+    window.addEventListener('pointermove', (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = (e.clientY / window.innerHeight) * 2 - 1;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    renderer.setAnimationLoop(() => {
+      controls.update();
+      const targetRotY = params.tiltEnabled ? mouse.x * 0.25 : 0;
+      const targetRotX = params.tiltEnabled ? mouse.y * 0.15 : 0;
+      pivot.rotation.y += (targetRotY - pivot.rotation.y) * 0.08;
+      pivot.rotation.x += (targetRotX - pivot.rotation.x) * 0.08;
+      renderer.render(scene, camera);
+    });
+  </script>
+</body>
+</html>

@@ -8,18 +8,34 @@
     html, body { margin: 0; height: 100%; background: #0a0a0a; overflow: hidden; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #eaebdb; }
     canvas { display: block; }
     #panel {
-      position: fixed; top: 16px; right: 16px; width: 240px;
+      position: fixed; top: 16px; right: 16px;
+      width: 260px;
+      min-width: 200px; min-height: 60px;
+      max-width: 520px; max-height: calc(100vh - 32px);
       background: rgba(20, 20, 20, 0.72);
       backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
       border: 1px solid rgba(234, 235, 219, 0.12);
       border-radius: 10px; font-size: 11px;
       user-select: none;
-      touch-action: none;
+      display: flex; flex-direction: column;
+      overflow: hidden;
     }
+    #panel.collapsed { min-height: 0; }
+    #panel .grip {
+      position: absolute; right: 0; bottom: 0;
+      width: 16px; height: 16px; cursor: nwse-resize;
+      z-index: 10; touch-action: none;
+      background-image:
+        linear-gradient(135deg, transparent 50%, rgba(234, 235, 219, 0.5) 50%, rgba(234, 235, 219, 0.5) 60%, transparent 60%),
+        linear-gradient(135deg, transparent 72%, rgba(234, 235, 219, 0.5) 72%, rgba(234, 235, 219, 0.5) 82%, transparent 82%);
+      background-position: -2px -2px;
+    }
+    #panel.collapsed .grip { display: none; }
     #panel .header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 10px 14px; cursor: grab;
       border-bottom: 1px solid rgba(234, 235, 219, 0.08);
+      flex-shrink: 0; touch-action: none;
     }
     #panel.dragging .header { cursor: grabbing; }
     #panel .title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.6; }
@@ -31,7 +47,15 @@
       opacity: 0.7;
     }
     #panel .toggle:hover { background: rgba(234, 235, 219, 0.08); opacity: 1; }
-    #panel .body { padding: 12px 14px 14px; }
+    #panel .body {
+      padding: 12px 14px 14px;
+      overflow-y: auto; overflow-x: hidden;
+      flex: 1 1 auto; min-height: 0;
+    }
+    #panel .body::-webkit-scrollbar { width: 6px; }
+    #panel .body::-webkit-scrollbar-track { background: transparent; }
+    #panel .body::-webkit-scrollbar-thumb { background: rgba(234, 235, 219, 0.2); border-radius: 3px; }
+    #panel .body::-webkit-scrollbar-thumb:hover { background: rgba(234, 235, 219, 0.35); }
     #panel.collapsed .body { display: none; }
     #panel.collapsed .header { border-bottom: none; }
     #panel .row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
@@ -77,6 +101,42 @@
       cursor: pointer;
     }
     #panel button:hover { background: rgba(234, 235, 219, 0.08); }
+    #panel .info {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 13px; height: 13px; margin-left: 6px;
+      border-radius: 50%; border: 1px solid rgba(234, 235, 219, 0.25);
+      font-size: 9px; line-height: 1; opacity: 0.5; cursor: help;
+      position: relative; vertical-align: middle;
+    }
+    #panel .info:hover { opacity: 1; }
+    .tooltip {
+      display: none; position: fixed;
+      width: 180px; padding: 6px 8px;
+      background: rgba(10, 10, 10, 0.95);
+      border: 1px solid rgba(234, 235, 219, 0.15);
+      border-radius: 5px;
+      font-size: 10px; color: #eaebdb;
+      white-space: normal; line-height: 1.4;
+      z-index: 1000; pointer-events: none;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    #panel .presets-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 12px; margin-bottom: 4px;
+    }
+    #panel .presets-title { font-size: 10px; opacity: 0.55; text-transform: uppercase; letter-spacing: 0.08em; }
+    #panel .save-btn { width: auto; margin-top: 0; padding: 4px 10px; font-size: 10px; }
+    #panel .save-btn.active { background: rgba(234, 235, 219, 0.15); border-color: rgba(234, 235, 219, 0.4); }
+    #panel .presets { display: flex; gap: 6px; margin: 0 0 2px; }
+    #panel .presets button { width: auto; flex: 1; margin-top: 0; padding: 6px 4px; font-size: 10px; transition: border-color 0.15s, box-shadow 0.15s; }
+    #panel .presets button.empty { opacity: 0.45; }
+    #panel .presets button.filled { border-color: rgba(234, 235, 219, 0.4); }
+    #panel .presets.save-mode button {
+      border-color: rgba(234, 235, 219, 0.55); cursor: copy;
+      box-shadow: 0 0 0 2px rgba(234, 235, 219, 0.08);
+      opacity: 1;
+    }
+    #panel .hint { font-size: 9px; opacity: 0.4; text-align: center; margin-bottom: 8px; }
   </style>
   <script type="importmap">
   {
@@ -95,15 +155,15 @@
     </div>
     <div class="body" id="panel-body">
       <div class="color-row">
-        <span>Color</span>
+        <span>Color <span class="info" data-tip="Base color of the material. Tints everything except emissive light.">?</span></span>
         <input id="color" type="color" value="#eaebdb" />
       </div>
       <div class="color-row">
-        <span>Emissive</span>
+        <span>Emissive <span class="info" data-tip="Self-lit color that ignores scene lighting. Black = off. Pair with Emissive Int. to make the logo glow.">?</span></span>
         <input id="emissive" type="color" value="#000000" />
       </div>
       <div class="check-row">
-        <span>Mouse tilt</span>
+        <span>Mouse tilt <span class="info" data-tip="Logo rotates to follow the cursor. Turn off to only use orbit controls (drag/scroll on canvas).">?</span></span>
         <input id="tilt" type="checkbox" checked />
       </div>
     </div>
@@ -220,19 +280,19 @@
     });
 
     const sliders = [
-      { key: 'depth', label: 'Depth', min: 0, max: 400, step: 1 },
-      { key: 'bevelThickness', label: 'Bevel Thickness', min: 0, max: 80, step: 0.5 },
-      { key: 'bevelSize', label: 'Bevel Size', min: 0, max: 40, step: 0.5 },
-      { key: 'bevelOffset', label: 'Bevel Offset', min: -20, max: 20, step: 0.5 },
-      { key: 'bevelSegments', label: 'Bevel Segments', min: 1, max: 24, step: 1 },
-      { key: 'curveSegments', label: 'Curve Segments', min: 4, max: 64, step: 1 },
-      { key: 'steps', label: 'Extrude Steps', min: 1, max: 10, step: 1 },
-      { key: 'logoSize', label: 'Logo Size', min: 100, max: 1000, step: 10 },
-      { key: 'metalness', label: 'Metalness', min: 0, max: 1, step: 0.01 },
-      { key: 'roughness', label: 'Roughness', min: 0, max: 1, step: 0.01 },
-      { key: 'clearcoat', label: 'Clearcoat', min: 0, max: 1, step: 0.01 },
-      { key: 'clearcoatRoughness', label: 'Clearcoat Rough.', min: 0, max: 1, step: 0.01 },
-      { key: 'emissiveIntensity', label: 'Emissive Int.', min: 0, max: 2, step: 0.01 },
+      { key: 'depth', label: 'Depth', min: 0, max: 400, step: 1, tip: 'How far the shape is extruded along Z. Higher = thicker 3D logo.' },
+      { key: 'bevelThickness', label: 'Bevel Thickness', min: 0, max: 80, step: 0.5, tip: 'Z-span of the rolled edge — how much depth the rollover takes up.' },
+      { key: 'bevelSize', label: 'Bevel Size', min: 0, max: 40, step: 0.5, tip: 'How far the bevel eats inward on the X-Y plane before curving back out to meet the silhouette.' },
+      { key: 'bevelOffset', label: 'Bevel Offset', min: -20, max: 20, step: 0.5, tip: 'Shifts the whole bevel profile in or out. Negative pulls inward; positive pushes outward.' },
+      { key: 'bevelSegments', label: 'Bevel Segments', min: 1, max: 24, step: 1, tip: 'Smoothness of the bevel curve. More segments = rounder, smoother edge.' },
+      { key: 'curveSegments', label: 'Curve Segments', min: 4, max: 64, step: 1, tip: 'Subdivisions along the SVG path curves. Higher = smoother curved outlines.' },
+      { key: 'steps', label: 'Extrude Steps', min: 1, max: 10, step: 1, tip: 'Subdivisions along the Z axis. No visible change on a static shape; useful if you deform the mesh.' },
+      { key: 'logoSize', label: 'Logo Size', min: 100, max: 1000, step: 10, tip: 'Target height of the logo in world units. Scales the pivot — does not change camera perspective.' },
+      { key: 'metalness', label: 'Metalness', min: 0, max: 1, step: 0.01, tip: 'PBR metalness. 0 = non-metal (plastic/ceramic), 1 = pure metal.' },
+      { key: 'roughness', label: 'Roughness', min: 0, max: 1, step: 0.01, tip: 'PBR roughness. 0 = mirror-smooth, 1 = completely matte.' },
+      { key: 'clearcoat', label: 'Clearcoat', min: 0, max: 1, step: 0.01, tip: 'Strength of a glossy top layer over the base material, like car paint.' },
+      { key: 'clearcoatRoughness', label: 'Clearcoat Rough.', min: 0, max: 1, step: 0.01, tip: 'Roughness of the clearcoat layer. 0 = sharp reflection, 1 = blurry/satin.' },
+      { key: 'emissiveIntensity', label: 'Emissive Int.', min: 0, max: 2, step: 0.01, tip: 'Brightness of the emissive color. 0 = no glow. Pairs with the Emissive color picker.' },
     ];
 
     const materialOnlyKeys = new Set(['metalness', 'roughness', 'clearcoat', 'clearcoatRoughness', 'emissiveIntensity']);
@@ -247,7 +307,7 @@
       const row = document.createElement('div');
       row.className = 'row';
       row.innerHTML = `
-        <div class="label"><span>${s.label}</span><span class="val"></span></div>
+        <div class="label"><span>${s.label} <span class="info" data-tip="${s.tip}">?</span></span><span class="val"></span></div>
         <input type="range" min="${s.min}" max="${s.max}" step="${s.step}" value="${params[s.key]}" />
       `;
       panelBody.appendChild(row);
@@ -283,21 +343,8 @@
       params.tiltEnabled = e.target.checked;
     });
 
-    const copyBtn = document.createElement('button');
-    copyBtn.textContent = 'Copy Settings';
-    panelBody.appendChild(copyBtn);
-    copyBtn.addEventListener('click', () => {
-      const snippet = JSON.stringify(params, null, 2);
-      navigator.clipboard?.writeText(snippet);
-      copyBtn.textContent = 'Copied!';
-      setTimeout(() => (copyBtn.textContent = 'Copy Settings'), 1200);
-    });
-
-    const resetBtn = document.createElement('button');
-    resetBtn.textContent = 'Reset';
-    panelBody.appendChild(resetBtn);
-    resetBtn.addEventListener('click', () => {
-      Object.assign(params, defaults);
+    function applyParams(source) {
+      Object.assign(params, source);
       for (const s of sliders) {
         sliderInputs[s.key].value = params[s.key];
         valueEls[s.key].textContent = fmt(params[s.key], s.step);
@@ -312,20 +359,154 @@
       colorInput.value = params.color;
       emissiveInput.value = params.emissiveColor;
       tiltInput.checked = params.tiltEnabled;
+      rebuildGeometry();
+    }
+
+    const PRESET_KEY = 'faro-presets';
+    let presets = [];
+    try { presets = JSON.parse(localStorage.getItem(PRESET_KEY) || '[]'); } catch { presets = []; }
+
+    const presetsHeader = document.createElement('div');
+    presetsHeader.className = 'presets-header';
+    presetsHeader.innerHTML = `<span class="presets-title">Presets</span><button class="save-btn" type="button">Save to…</button>`;
+    panelBody.appendChild(presetsHeader);
+    const saveBtn = presetsHeader.querySelector('.save-btn');
+
+    const presetsRow = document.createElement('div');
+    presetsRow.className = 'presets';
+    const presetBtns = [];
+    for (let i = 0; i < 3; i++) {
+      const b = document.createElement('button');
+      presetBtns.push(b);
+      presetsRow.appendChild(b);
+      b.addEventListener('click', () => {
+        if (saveMode) {
+          if (presets[i] && !confirm(`Overwrite Slot ${i+1}?`)) { setSaveMode(false); return; }
+          presets[i] = { ...params };
+          localStorage.setItem(PRESET_KEY, JSON.stringify(presets));
+          setSaveMode(false);
+          renderPresetBtns();
+          b.textContent = 'Saved!';
+          setTimeout(renderPresetBtns, 900);
+        } else if (presets[i]) {
+          applyParams(presets[i]);
+        }
+      });
+    }
+    panelBody.appendChild(presetsRow);
+
+    const presetHint = document.createElement('div');
+    presetHint.className = 'hint';
+    panelBody.appendChild(presetHint);
+
+    let saveMode = false;
+    function setSaveMode(on) {
+      saveMode = on;
+      presetsRow.classList.toggle('save-mode', on);
+      saveBtn.classList.toggle('active', on);
+      saveBtn.textContent = on ? 'Cancel' : 'Save to…';
+      presetHint.textContent = on ? 'pick a slot to save into (Esc to cancel)' : 'click a slot to load';
+    }
+    saveBtn.addEventListener('click', () => setSaveMode(!saveMode));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && saveMode) setSaveMode(false);
+    });
+
+    function renderPresetBtns() {
+      for (let i = 0; i < 3; i++) {
+        const filled = !!presets[i];
+        presetBtns[i].className = filled ? 'filled' : 'empty';
+        presetBtns[i].textContent = filled ? `Slot ${i+1} ●` : `Slot ${i+1}`;
+      }
+    }
+    renderPresetBtns();
+    setSaveMode(false);
+
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = 'Copy Settings';
+    panelBody.appendChild(copyBtn);
+    copyBtn.addEventListener('click', () => {
+      const snippet = JSON.stringify(params, null, 2);
+      navigator.clipboard?.writeText(snippet);
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => (copyBtn.textContent = 'Copy Settings'), 1200);
+    });
+
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = 'Reset';
+    panelBody.appendChild(resetBtn);
+    resetBtn.addEventListener('click', () => {
+      applyParams(defaults);
       camera.position.set(0, 0, 800);
       controls.target.set(0, 0, 0);
       controls.update();
-      rebuildGeometry();
     });
 
     const panelHeader = document.getElementById('panel-header');
     const panelToggle = document.getElementById('panel-toggle');
 
+    let savedHeight = '';
     panelToggle.addEventListener('click', (e) => {
       e.stopPropagation();
-      const collapsed = panel.classList.toggle('collapsed');
-      panelToggle.textContent = collapsed ? '+' : '−';
-      panelToggle.title = collapsed ? 'Expand' : 'Collapse';
+      const willCollapse = !panel.classList.contains('collapsed');
+      if (willCollapse) {
+        savedHeight = panel.style.height;
+        panel.style.height = '';
+      } else {
+        panel.style.height = savedHeight;
+      }
+      panel.classList.toggle('collapsed');
+      panelToggle.textContent = willCollapse ? '+' : '−';
+      panelToggle.title = willCollapse ? 'Expand' : 'Collapse';
+    });
+
+    const grip = document.createElement('div');
+    grip.className = 'grip';
+    panel.appendChild(grip);
+    let resizeState = null;
+    grip.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      const rect = panel.getBoundingClientRect();
+      resizeState = {
+        id: e.pointerId,
+        startX: e.clientX, startY: e.clientY,
+        startW: rect.width, startH: rect.height,
+      };
+      grip.setPointerCapture(e.pointerId);
+    });
+    grip.addEventListener('pointermove', (e) => {
+      if (!resizeState || e.pointerId !== resizeState.id) return;
+      const w = Math.max(200, Math.min(520, resizeState.startW + (e.clientX - resizeState.startX)));
+      const h = Math.max(80, Math.min(window.innerHeight - 16, resizeState.startH + (e.clientY - resizeState.startY)));
+      panel.style.width = w + 'px';
+      panel.style.height = h + 'px';
+    });
+    const endResize = (e) => {
+      if (!resizeState || e.pointerId !== resizeState.id) return;
+      grip.releasePointerCapture(resizeState.id);
+      resizeState = null;
+    };
+    grip.addEventListener('pointerup', endResize);
+    grip.addEventListener('pointercancel', endResize);
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip';
+    document.body.appendChild(tooltip);
+    panel.addEventListener('mouseover', (e) => {
+      const info = e.target.closest('.info');
+      if (!info) return;
+      tooltip.textContent = info.dataset.tip;
+      tooltip.style.display = 'block';
+      const r = info.getBoundingClientRect();
+      const tipW = 180 + 16;
+      let left = r.left - tipW - 2;
+      if (left < 8) left = r.right + 8;
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = (r.top + r.height / 2) + 'px';
+      tooltip.style.transform = 'translateY(-50%)';
+    });
+    panel.addEventListener('mouseout', (e) => {
+      if (e.target.closest('.info')) tooltip.style.display = 'none';
     });
 
     let dragState = null;

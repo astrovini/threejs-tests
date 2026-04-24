@@ -8,63 +8,12 @@
     :root {
       --bg: #07070a;
       --fg: #eaebdb;
-      --dim: rgba(234, 235, 219, 0.55);
-      --faint: rgba(234, 235, 219, 0.28);
     }
     html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; color: var(--fg); }
     body { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
     canvas { display: block; cursor: default; }
     canvas.is-pointer { cursor: pointer; }
 
-    .hud {
-      position: fixed; inset: 0;
-      pointer-events: none;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: flex-end;
-      padding: 0 24px 8vh;
-      text-align: center;
-    }
-    .tagline {
-      margin: 0;
-      font-size: clamp(14px, 1.6vw, 18px);
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--dim);
-      font-weight: 400;
-      transition: opacity 600ms ease, transform 600ms ease;
-    }
-    .hint {
-      margin: 14px 0 0;
-      font-size: 11px;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: var(--faint);
-      transition: opacity 400ms ease;
-    }
-    .hint .dot {
-      display: inline-block; width: 5px; height: 5px; border-radius: 50%;
-      background: var(--faint); margin: 0 8px 2px; vertical-align: middle;
-      animation: pulse 2.4s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 0.25; transform: scale(1); }
-      50% { opacity: 0.9; transform: scale(1.4); }
-    }
-    .hud.is-revealed .tagline { opacity: 0; transform: translateY(-6px); }
-    .hud.is-revealed .hint { opacity: 0; }
-
-    .back {
-      position: fixed; top: 22px; left: 22px;
-      pointer-events: auto;
-      background: transparent; border: 1px solid rgba(234, 235, 219, 0.2);
-      color: var(--fg); font: inherit; font-size: 11px;
-      padding: 8px 14px; border-radius: 999px; cursor: pointer;
-      letter-spacing: 0.15em; text-transform: uppercase;
-      opacity: 0; transform: translateY(-4px);
-      transition: opacity 400ms ease, transform 400ms ease, background 200ms ease;
-    }
-    .back:hover { background: rgba(234, 235, 219, 0.08); }
-    .back.is-visible { opacity: 0.8; transform: translateY(0); }
 
     .a11y {
       position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden;
@@ -80,12 +29,6 @@
   </script>
 </head>
 <body>
-  <div class="hud" id="hud">
-    <p class="tagline">Enlighten your finances</p>
-    <p class="hint"><span class="dot"></span>Click the logo<span class="dot"></span></p>
-  </div>
-  <button class="back" id="back" type="button" aria-label="Back to logo">← Back</button>
-
   <nav class="a11y" aria-label="Download Faro">
     <a href="https://apps.apple.com/" id="link-ios">Download on the App Store</a>
     <a href="https://play.google.com/" id="link-android">Get it on Google Play</a>
@@ -114,7 +57,9 @@
     scene.background = new THREE.Color(0x07070a);
     scene.fog = new THREE.Fog(0x07070a, 1200, 2400);
 
-    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 4000);
+    // near plane pushed close to the scene depth (camera z=950, content near z=0)
+    // — dramatically improves depth-buffer precision so decals don't z-fight the card base.
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 100, 4000);
     camera.position.set(0, 0, 950);
 
     // PBR environment so metallic surfaces have something to reflect
@@ -131,13 +76,23 @@
     scene.add(rim);
 
     // ---------- post-processing ----------
-    const composer = new EffectComposer(renderer);
+    // MSAA render target sized to device pixels — EffectComposer's default target
+    // skips the renderer's antialias flag, so we supply our own multisampled one.
+    const dpr = renderer.getPixelRatio();
+    const msaaTarget = new THREE.WebGLRenderTarget(
+      Math.floor(window.innerWidth * dpr),
+      Math.floor(window.innerHeight * dpr),
+      { samples: 4, type: THREE.HalfFloatType },
+    );
+    const composer = new EffectComposer(renderer, msaaTarget);
+    composer.setPixelRatio(dpr);
+    composer.setSize(window.innerWidth, window.innerHeight);
     composer.addPass(new RenderPass(scene, camera));
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      0.22,  // strength
-      0.4,   // radius
-      0.38,  // threshold — only the brightest pixels bloom
+      0.25,    // strength
+      0.5,    // radius
+      0.85,   // threshold — above decal icon brightness, below gold-emissive peak
     );
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
@@ -159,7 +114,9 @@
       roughness: 0.4,
       clearcoat: 0.4,
       clearcoatRoughness: 0.35,
+      transparent: true,
     });
+
 
     // ---------- logo ----------
     const logoPivot = new THREE.Group();
@@ -281,7 +238,7 @@
 
     function createCard(kind, href) {
       const group = new THREE.Group();
-      const w = 520, h = 170, depth = 28, radius = 28;
+      const w = 420, h = 130, depth = 28, radius = 22;
       const shape = roundedRectShape(w, h, radius);
       const geom = new THREE.ExtrudeGeometry(shape, {
         depth,
@@ -299,7 +256,7 @@
       const tex = makeBadgeTexture(kind);
       const decalMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
       const decal = new THREE.Mesh(new THREE.PlaneGeometry(w - 60, (w - 60) * (320 / 1024)), decalMat);
-      decal.position.z = depth / 2 + 5;
+      decal.position.z = depth / 2 + 15;
       group.add(decal);
 
       // a thin emissive border ring for premium feel — same shape, slightly larger,
@@ -326,29 +283,167 @@
     scene.add(cardA);
     scene.add(cardB);
 
+    // ---------- nav cards (Blog / Legal / Contact) ----------
+    function makeNavCardTexture(label, type) {
+      // Canvas ratio matches the decal PlaneGeometry ratio (w-8) : (h-8) = 142:52 ≈ 2.73:1
+      const W = 512, H = 188;
+      const c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, W, H);
+
+      const fg = '#eaebdb';
+      ctx.strokeStyle = fg;
+      ctx.fillStyle = fg;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // icon — centered in the left 130px column
+      const ix = 65, iy = H / 2;
+      if (type === 'blog') {
+        // three text lines (like a document)
+        ctx.lineWidth = 14;
+        const lens = [54, 54, 36];
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.moveTo(ix - lens[i] / 2, iy - 26 + i * 26);
+          ctx.lineTo(ix + lens[i] / 2, iy - 26 + i * 26);
+          ctx.stroke();
+        }
+      } else if (type === 'legal') {
+        // scales of justice
+        ctx.lineWidth = 10;
+        ctx.beginPath(); ctx.moveTo(ix, iy - 34); ctx.lineTo(ix, iy + 34); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ix - 26, iy - 34); ctx.lineTo(ix + 26, iy - 34); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ix - 26, iy - 34); ctx.lineTo(ix - 34, iy + 4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ix + 26, iy - 34); ctx.lineTo(ix + 34, iy + 4); ctx.stroke();
+        ctx.lineWidth = 8;
+        ctx.beginPath(); ctx.arc(ix - 34, iy + 4, 12, 0, Math.PI); ctx.stroke();
+        ctx.beginPath(); ctx.arc(ix + 34, iy + 4, 12, 0, Math.PI); ctx.stroke();
+      } else if (type === 'contact') {
+        // envelope
+        ctx.lineWidth = 10;
+        const ex = ix, ey = iy, ew = 70, eh = 50;
+        ctx.strokeRect(ex - ew / 2, ey - eh / 2, ew, eh);
+        ctx.beginPath();
+        ctx.moveTo(ex - ew / 2, ey - eh / 2);
+        ctx.lineTo(ex, ey + 6);
+        ctx.lineTo(ex + ew / 2, ey - eh / 2);
+        ctx.stroke();
+      }
+
+      // subtle divider
+      ctx.globalAlpha = 0.18;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(130, 22); ctx.lineTo(130, H - 22); ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // label text — centered in the right column
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = fg;
+      ctx.font = '500 72px ui-sans-serif, -apple-system, "Segoe UI", Inter, sans-serif';
+      ctx.fillText(label.toUpperCase(), 130 + (W - 130) / 2, H / 2);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return tex;
+    }
+
+    function createNavCard(label, href, type) {
+      const group = new THREE.Group();
+      const w = 150, h = 60, depth = 10, radius = 13;
+      const shape = roundedRectShape(w, h, radius);
+      const geom = new THREE.ExtrudeGeometry(shape, {
+        depth,
+        bevelEnabled: true,
+        bevelThickness: 2,
+        bevelSize: 2,
+        bevelSegments: 4,
+        curveSegments: 10,
+      });
+      geom.translate(0, 0, -depth / 2);
+
+      const baseMat = new THREE.MeshPhysicalMaterial({
+        color: 0x14141a,
+        metalness: 0.6,
+        roughness: 0.4,
+        clearcoat: 0.4,
+        clearcoatRoughness: 0.35,
+        transparent: true,
+      });
+      const base = new THREE.Mesh(geom, baseMat);
+      group.add(base);
+
+      // badge decal floats just above the front face — same pattern as download cards
+      const tex = makeNavCardTexture(label, type);
+      const decalMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
+      const decal = new THREE.Mesh(
+        new THREE.PlaneGeometry(w - 8, (w - 8) * (188 / 512)),
+        decalMat,
+      );
+      decal.position.z = depth / 2 + 10;
+      group.add(decal);
+
+      const ringShape = roundedRectShape(w + 6, h + 6, radius + 3);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xeaebdb, transparent: true, opacity: 0, depthWrite: false,
+      });
+      const ring = new THREE.Mesh(new THREE.ShapeGeometry(ringShape), ringMat);
+      ring.position.z = -depth / 2 - 1;
+      group.add(ring);
+
+      group.userData = { label, href, baseMat, decal, ring, hover: 0, hoverTarget: 0 };
+      group.visible = false;
+      return group;
+    }
+
+    const navBlog    = createNavCard('Blog',    '/blog',                'blog');
+    const navLegal   = createNavCard('Legal',   '/legal',               'legal');
+    const navContact = createNavCard('Contact', 'mailto:hello@faro.app', 'contact');
+    const navCards   = [navBlog, navLegal, navContact];
+    navCards.forEach(c => scene.add(c));
+
     // ---------- layout (responsive) ----------
     function getLayout() {
       const portrait = window.innerWidth < window.innerHeight * 1.05;
+      const aspect = window.innerWidth / window.innerHeight;
+      // viewport extents in world units at z=0 (camera z=950, FOV 38°)
+      const vpH = 2 * 950 * Math.tan(19 * Math.PI / 180);
+      const vpW = vpH * aspect;
+      const navScale = 0.13;
+      const iconHalf = TARGET_LOGO_HEIGHT * navScale * 0.5;
+      const logoNavX = -vpW * 0.5 + iconHalf + vpW * 0.04;
+      const logoNavY =  vpH * 0.5 - iconHalf - vpH * 0.05;
       if (portrait) {
         return {
-          logoIdleScale: 1.0,
-          logoRevealedY: 220,
-          logoRevealedScale: 0.55,
-          cardScale: 0.85,
+          logoNavX, logoNavY, logoNavScale: navScale,
+          cardScale: 0.9,
           cardPositions: [
-            { x: 0, y: -50 },
-            { x: 0, y: -260 },
+            { x: 0, y: 70 },
+            { x: 0, y: -65 },
+          ],
+          navCardScale: 0.65,
+          navCardPositions: [
+            { x: -130, y: -180 },
+            { x:    0, y: -180 },
+            { x:  130, y: -180 },
           ],
         };
       }
       return {
-        logoIdleScale: 1.0,
-        logoRevealedY: 160,
-        logoRevealedScale: 0.62,
-        cardScale: 1.0,
+        logoNavX, logoNavY, logoNavScale: navScale,
+        cardScale: 0.9,
         cardPositions: [
-          { x: -310, y: -180 },
-          { x: 310, y: -180 },
+          { x: 0, y: 80 },
+          { x: 0, y: -60 },
+        ],
+        navCardScale: 0.9,
+        navCardPositions: [
+          { x: -195, y: -190 },
+          { x:    0, y: -190 },
+          { x:  195, y: -190 },
         ],
       };
     }
@@ -364,12 +459,10 @@
     function setState(next) {
       state = next;
       stateT = 0;
-      if (next === STATE.FLIPPING || next === STATE.REVEALED) {
+      if (next === STATE.REVEALED) {
         cardA.visible = true;
         cardB.visible = true;
       }
-      hud.classList.toggle('is-revealed', next !== STATE.IDLE);
-      backBtn.classList.toggle('is-visible', next === STATE.REVEALED || next === STATE.FLIPPING);
     }
 
     // ---------- easings ----------
@@ -399,7 +492,7 @@
       const targets = state === STATE.IDLE
         ? [logoSpin]
         : state === STATE.REVEALED
-          ? [cardA, cardB]
+          ? [logoSpin, cardA, cardB, ...navCards]
           : [];
       const hits = raycaster.intersectObjects(targets, true);
       if (!hits.length) return null;
@@ -407,7 +500,8 @@
       while (o && o !== scene) {
         if (o === cardA) return { kind: 'card', card: cardA };
         if (o === cardB) return { kind: 'card', card: cardB };
-        if (o === logoSpin || o.parent === logoSpin || o === logoGroup) return { kind: 'logo' };
+        if (navCards.includes(o)) return { kind: 'nav', card: o };
+        if (o === logoSpin || o.parent === logoSpin) return { kind: 'logo' };
         o = o.parent;
       }
       return null;
@@ -417,18 +511,17 @@
       const hit = pick();
       if (state === STATE.IDLE && hit?.kind === 'logo') {
         setState(STATE.FLIPPING);
+      } else if (state === STATE.REVEALED && hit?.kind === 'logo') {
+        setState(STATE.RETURNING);
       } else if (state === STATE.REVEALED && hit?.kind === 'card') {
+        const href = hit.card.userData.href;
+        if (href) window.open(href, '_blank', 'noopener');
+      } else if (state === STATE.REVEALED && hit?.kind === 'nav') {
         const href = hit.card.userData.href;
         if (href) window.open(href, '_blank', 'noopener');
       } else if (state === STATE.REVEALED && !hit) {
         setState(STATE.RETURNING);
       }
-    });
-
-    const hud = document.getElementById('hud');
-    const backBtn = document.getElementById('back');
-    backBtn.addEventListener('click', () => {
-      if (state === STATE.REVEALED) setState(STATE.RETURNING);
     });
 
     // ---------- animation loop ----------
@@ -437,6 +530,7 @@
 
     // current animated values (interpolated each frame)
     const cur = {
+      logoX: 0,
       logoY: 0,
       logoScale: 1,
       logoFlip: 0,
@@ -445,6 +539,8 @@
       cardOpacity: 0,
       cardScale: 0.6,
       cardYOffset: 80,
+      navCardOpacity: 0,
+      navCardYOffset: 60,
       emissive: 0.08,
     };
 
@@ -457,13 +553,17 @@
       cur.logoTiltY += (targetY - cur.logoTiltY) * 0.07;
       cur.logoTiltX += (targetX - cur.logoTiltX) * 0.07;
 
-      // emissive pulse — slow heartbeat
-      const pulse = 0.05 + Math.sin(time * 1.2) * 0.025 + 0.025;
-      cur.emissive += (pulse - cur.emissive) * 0.05;
+      // quartic pulse: spends most of the ~3.5s cycle near-black,
+      // then crests sharply into bloom range — the visual tap cue
+      const pingPhase = (Math.sin(time * 1.8) + 1) * 0.5;  // 0..1
+      const ping4 = pingPhase * pingPhase * pingPhase * pingPhase;
+      const pulse = 0.04 + ping4 * 0.65;
+      cur.emissive += (pulse - cur.emissive) * 0.08;
 
-      // ease back to home transform
+      // ease back to home transform (scale breathes in sync with glow)
+      cur.logoX += (0 - cur.logoX) * 0.08;
       cur.logoY += (0 - cur.logoY) * 0.08;
-      cur.logoScale += (1 - cur.logoScale) * 0.08;
+      cur.logoScale += (1 + ping4 * 0.05 - cur.logoScale) * 0.06;
       cur.logoFlip += (0 - cur.logoFlip) * 0.1;
       cur.cardOpacity += (0 - cur.cardOpacity) * 0.1;
       cur.cardScale += (0.6 - cur.cardScale) * 0.1;
@@ -472,52 +572,67 @@
         cardA.visible = false;
         cardB.visible = false;
       }
+      cur.navCardOpacity += (0 - cur.navCardOpacity) * 0.1;
+      cur.navCardYOffset += (60 - cur.navCardYOffset) * 0.1;
+      if (cur.navCardOpacity < 0.01) navCards.forEach(c => c.visible = false);
     }
 
     function updateFlipping(dt) {
       stateT = clamp01(stateT + dt / FLIP_DURATION);
       const t = stateT;
       cur.logoFlip = easeOutBack(t) * Math.PI;
-      cur.logoY = easeInOutCubic(t) * layout.logoRevealedY;
-      cur.logoScale = 1 + (layout.logoRevealedScale - 1) * easeInOutCubic(t);
-      // lerp tilt back to neutral so the flip stays clean
+      // fly logo to nav corner in sync with the flip
+      const nav = easeInOutCubic(t);
+      cur.logoX = layout.logoNavX * nav;
+      cur.logoY = layout.logoNavY * nav;
+      cur.logoScale = 1 + (layout.logoNavScale - 1) * nav;
       cur.logoTiltX += (0 - cur.logoTiltX) * 0.15;
       cur.logoTiltY += (0 - cur.logoTiltY) * 0.15;
-      // subtle emissive lift during flip — nothing dramatic
       const flare = 0.08 + Math.sin(t * Math.PI) * 0.18;
       cur.emissive += (flare - cur.emissive) * 0.15;
 
-      const ct = clamp01((t - 0.45) / 0.55);
+      // download cards appear after logo settles
+      const ct = clamp01((t - 0.72) / 0.28);
+      if (ct > 0) { cardA.visible = true; cardB.visible = true; }
       cur.cardOpacity = easeOutCubic(ct);
       cur.cardScale = 0.6 + 0.4 * easeOutBack(ct);
       cur.cardYOffset = 80 * (1 - easeOutCubic(ct));
+
+      // nav cards trail in slightly after download cards
+      const nct = clamp01((t - 0.82) / 0.18);
+      if (nct > 0) navCards.forEach(c => c.visible = true);
+      cur.navCardOpacity = easeOutCubic(nct);
+      cur.navCardYOffset = 60 * (1 - easeOutCubic(nct));
 
       if (t >= 1) setState(STATE.REVEALED);
     }
 
     function updateRevealed(dt) {
-      // hold the flipped pose; let the logo tilt subtly with mouse
-      const targetY = Math.PI + mouse.x * 0.15;
-      const targetX = mouse.y * 0.08;
-      cur.logoFlip += (targetY - cur.logoFlip) * 0.06;
-      cur.logoTiltX += (targetX - cur.logoTiltX) * 0.06;
-      cur.logoTiltY += (0 - cur.logoTiltY) * 0.06;
-      cur.logoY += (layout.logoRevealedY - cur.logoY) * 0.1;
-      cur.logoScale += (layout.logoRevealedScale - cur.logoScale) * 0.1;
+      cur.logoX += (layout.logoNavX - cur.logoX) * 0.1;
+      cur.logoY += (layout.logoNavY - cur.logoY) * 0.1;
+      cur.logoScale += (layout.logoNavScale - cur.logoScale) * 0.1;
+      cur.logoFlip += (Math.PI - cur.logoFlip) * 0.08;
+      cur.logoTiltX += (0 - cur.logoTiltX) * 0.1;
+      cur.logoTiltY += (0 - cur.logoTiltY) * 0.1;
       cur.cardOpacity += (1 - cur.cardOpacity) * 0.1;
       cur.cardScale += (1 - cur.cardScale) * 0.1;
       cur.cardYOffset += (0 - cur.cardYOffset) * 0.1;
+      cur.navCardOpacity += (1 - cur.navCardOpacity) * 0.1;
+      cur.navCardYOffset += (0 - cur.navCardYOffset) * 0.1;
       cur.emissive += (0.1 - cur.emissive) * 0.05;
     }
 
     function updateReturning(dt) {
       stateT = clamp01(stateT + dt / RETURN_DURATION);
       cur.logoFlip += (0 - cur.logoFlip) * 0.14;
+      cur.logoX += (0 - cur.logoX) * 0.14;
       cur.logoY += (0 - cur.logoY) * 0.14;
       cur.logoScale += (1 - cur.logoScale) * 0.14;
       cur.cardOpacity += (0 - cur.cardOpacity) * 0.2;
       cur.cardScale += (0.6 - cur.cardScale) * 0.2;
       cur.cardYOffset += (80 - cur.cardYOffset) * 0.2;
+      cur.navCardOpacity += (0 - cur.navCardOpacity) * 0.25;
+      cur.navCardYOffset += (60 - cur.navCardYOffset) * 0.2;
       cur.emissive += (0.08 - cur.emissive) * 0.08;
       if (stateT >= 1) setState(STATE.IDLE);
     }
@@ -531,13 +646,20 @@
         pointerOn = hits.length ? 'logo' : null;
       } else if (state === STATE.REVEALED) {
         raycaster.setFromCamera(ndc, camera);
-        const hits = raycaster.intersectObjects([cardA, cardB], true);
-        if (hits.length) {
-          let o = hits[0].object;
-          while (o && o !== scene) {
-            if (o === cardA) { pointerOn = 'cardA'; break; }
-            if (o === cardB) { pointerOn = 'cardB'; break; }
-            o = o.parent;
+        const logoHits = raycaster.intersectObject(logoSpin, true);
+        if (logoHits.length) {
+          pointerOn = 'logo';
+        } else {
+          const hits = raycaster.intersectObjects([cardA, cardB, ...navCards], true);
+          if (hits.length) {
+            let o = hits[0].object;
+            while (o && o !== scene) {
+              if (o === cardA) { pointerOn = 'cardA'; break; }
+              if (o === cardB) { pointerOn = 'cardB'; break; }
+              const ni = navCards.indexOf(o);
+              if (ni !== -1) { pointerOn = `nav${ni}`; break; }
+              o = o.parent;
+            }
           }
         }
       }
@@ -548,6 +670,10 @@
         card.userData.hoverTarget = pointerOn === id ? 1 : 0;
         card.userData.hover += (card.userData.hoverTarget - card.userData.hover) * 0.12;
       }
+      navCards.forEach((card, i) => {
+        card.userData.hoverTarget = pointerOn === `nav${i}` ? 1 : 0;
+        card.userData.hover += (card.userData.hoverTarget - card.userData.hover) * 0.12;
+      });
     }
 
     function applyToScene() {
@@ -555,6 +681,7 @@
       logoTilt.rotation.x = cur.logoTiltX;
       logoTilt.rotation.y = cur.logoTiltY;
       logoSpin.rotation.y = cur.logoFlip;
+      logoPivot.position.x = cur.logoX;
       logoPivot.position.y = cur.logoY;
       logoPivot.scale.setScalar(cur.logoScale);
       goldMaterial.emissiveIntensity = cur.emissive;
@@ -567,20 +694,32 @@
         logoIcon.visible = showIcon;
       }
 
-      // cards — apply layout positions plus hover lift
-      const positions = [layout.cardPositions[0], layout.cardPositions[1]];
+      // download cards
+      cardBaseMaterial.opacity = cur.cardOpacity;
       [cardA, cardB].forEach((card, i) => {
-        const p = positions[i];
+        const p = layout.cardPositions[i];
         const h = card.userData.hover;
         card.position.x = p.x;
         card.position.y = p.y - cur.cardYOffset + h * 8;
         card.position.z = h * 18;
-        card.rotation.x = (mouse.y * 0.12 + h * -0.05);
-        card.rotation.y = (mouse.x * 0.18) + (i === 0 ? -0.06 : 0.06) + h * (i === 0 ? 0.04 : -0.04);
-        const s = layout.cardScale * cur.cardScale * (1 + h * 0.03);
-        card.scale.setScalar(s);
+        card.rotation.x = mouse.y * 0.12 + h * -0.05;
+        card.rotation.y = mouse.x * 0.18 + h * (i === 0 ? 0.04 : -0.04);
+        card.scale.setScalar(layout.cardScale * cur.cardScale * (1 + h * 0.03));
         card.userData.decal.material.opacity = cur.cardOpacity;
-        card.userData.ring.material.opacity = cur.cardOpacity * (0.15 + h * 0.35);
+        card.userData.ring.material.opacity  = cur.cardOpacity * (0.15 + h * 0.35);
+      });
+
+      // nav cards
+      navCards.forEach((card, i) => {
+        const p = layout.navCardPositions[i];
+        const h = card.userData.hover;
+        card.position.set(p.x, p.y - cur.navCardYOffset + h * 5, h * 12);
+        card.rotation.x = mouse.y * 0.08 + h * -0.04;
+        card.rotation.y = mouse.x * 0.12 + h * (i === 0 ? 0.03 : i === 2 ? -0.03 : 0);
+        card.scale.setScalar(layout.navCardScale * (1 + h * 0.04));
+        card.userData.baseMat.opacity = cur.navCardOpacity;
+        card.userData.decal.material.opacity = cur.navCardOpacity;
+        card.userData.ring.material.opacity  = cur.navCardOpacity * (0.1 + h * 0.4);
       });
     }
 

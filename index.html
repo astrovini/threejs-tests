@@ -3,140 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Faro</title>
+  <title>Faro — Enlighten your finances</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #0a0a0a; overflow: hidden; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #eaebdb; }
-    canvas { display: block; }
-    #panel {
-      position: fixed; top: 16px; right: 16px;
-      width: 260px;
-      min-width: 200px; min-height: 60px;
-      max-width: 520px; max-height: calc(100vh - 32px);
-      background: rgba(20, 20, 20, 0.72);
-      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-      border: 1px solid rgba(234, 235, 219, 0.12);
-      border-radius: 10px; font-size: 11px;
-      user-select: none;
-      display: flex; flex-direction: column;
-      overflow: hidden;
+    :root {
+      --bg: #07070a;
+      --fg: #eaebdb;
     }
-    #panel.collapsed { min-height: 0; }
-    #panel .grip {
-      position: absolute; right: 0; bottom: 0;
-      width: 16px; height: 16px; cursor: nwse-resize;
-      z-index: 10; touch-action: none;
-      background-image:
-        linear-gradient(135deg, transparent 50%, rgba(234, 235, 219, 0.5) 50%, rgba(234, 235, 219, 0.5) 60%, transparent 60%),
-        linear-gradient(135deg, transparent 72%, rgba(234, 235, 219, 0.5) 72%, rgba(234, 235, 219, 0.5) 82%, transparent 82%);
-      background-position: -2px -2px;
+    html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; color: var(--fg); }
+    body { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+    canvas { display: block; cursor: default; }
+    canvas.is-pointer { cursor: pointer; }
+
+
+    .a11y {
+      position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden;
     }
-    #panel.collapsed .grip { display: none; }
-    #panel .header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 14px; cursor: grab;
-      border-bottom: 1px solid rgba(234, 235, 219, 0.08);
-      flex-shrink: 0; touch-action: none;
-    }
-    #panel.dragging .header { cursor: grabbing; }
-    #panel .title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.6; }
-    #panel .toggle {
-      width: 20px; height: 20px; margin: 0; padding: 0;
-      background: transparent; color: #eaebdb; font: inherit;
-      border: 1px solid rgba(234, 235, 219, 0.2); border-radius: 4px;
-      cursor: pointer; line-height: 1; display: flex; align-items: center; justify-content: center;
-      opacity: 0.7;
-    }
-    #panel .toggle:hover { background: rgba(234, 235, 219, 0.08); opacity: 1; }
-    #panel .body {
-      padding: 12px 14px 14px;
-      overflow-y: auto; overflow-x: hidden;
-      flex: 1 1 auto; min-height: 0;
-    }
-    #panel .body::-webkit-scrollbar { width: 6px; }
-    #panel .body::-webkit-scrollbar-track { background: transparent; }
-    #panel .body::-webkit-scrollbar-thumb { background: rgba(234, 235, 219, 0.2); border-radius: 3px; }
-    #panel .body::-webkit-scrollbar-thumb:hover { background: rgba(234, 235, 219, 0.35); }
-    #panel.collapsed .body { display: none; }
-    #panel.collapsed .header { border-bottom: none; }
-    #panel .row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
-    #panel .label { display: flex; justify-content: space-between; opacity: 0.85; }
-    #panel .val { opacity: 0.6; font-variant-numeric: tabular-nums; }
-    #panel input[type=range] {
-      width: 100%; -webkit-appearance: none; appearance: none;
-      height: 2px; background: rgba(234, 235, 219, 0.2); border-radius: 2px; outline: none;
-    }
-    #panel input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none; appearance: none;
-      width: 12px; height: 12px; border-radius: 50%;
-      background: #eaebdb; cursor: pointer; border: none;
-    }
-    #panel input[type=range]::-moz-range-thumb {
-      width: 12px; height: 12px; border-radius: 50%;
-      background: #eaebdb; cursor: pointer; border: none;
-    }
-    #panel .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-    #panel .check-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-    #panel .check-row input[type=checkbox] {
-      -webkit-appearance: none; appearance: none; margin: 0;
-      width: 14px; height: 14px; border-radius: 3px;
-      border: 1px solid rgba(234, 235, 219, 0.3);
-      background: transparent; cursor: pointer; position: relative;
-    }
-    #panel .check-row input[type=checkbox]:checked { background: #eaebdb; border-color: #eaebdb; }
-    #panel .check-row input[type=checkbox]:checked::after {
-      content: ''; position: absolute; left: 4px; top: 1px;
-      width: 3px; height: 7px; border: solid #0a0a0a;
-      border-width: 0 2px 2px 0; transform: rotate(45deg);
-    }
-    #panel input[type=color] {
-      -webkit-appearance: none; appearance: none; border: none; background: none;
-      width: 28px; height: 18px; padding: 0; cursor: pointer;
-    }
-    #panel input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
-    #panel input[type=color]::-webkit-color-swatch { border: 1px solid rgba(234, 235, 219, 0.2); border-radius: 3px; }
-    #panel button {
-      width: 100%; margin-top: 4px; padding: 6px;
-      background: transparent; color: #eaebdb; font: inherit;
-      border: 1px solid rgba(234, 235, 219, 0.2); border-radius: 5px;
-      cursor: pointer;
-    }
-    #panel button:hover { background: rgba(234, 235, 219, 0.08); }
-    #panel .info {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 13px; height: 13px; margin-left: 6px;
-      border-radius: 50%; border: 1px solid rgba(234, 235, 219, 0.25);
-      font-size: 9px; line-height: 1; opacity: 0.5; cursor: help;
-      position: relative; vertical-align: middle;
-    }
-    #panel .info:hover { opacity: 1; }
-    .tooltip {
-      display: none; position: fixed;
-      width: 180px; padding: 6px 8px;
-      background: rgba(10, 10, 10, 0.95);
-      border: 1px solid rgba(234, 235, 219, 0.15);
-      border-radius: 5px;
-      font-size: 10px; color: #eaebdb;
-      white-space: normal; line-height: 1.4;
-      z-index: 1000; pointer-events: none;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
-    #panel .presets-header {
-      display: flex; justify-content: space-between; align-items: center;
-      margin-top: 12px; margin-bottom: 4px;
-    }
-    #panel .presets-title { font-size: 10px; opacity: 0.55; text-transform: uppercase; letter-spacing: 0.08em; }
-    #panel .save-btn { width: auto; margin-top: 0; padding: 4px 10px; font-size: 10px; }
-    #panel .save-btn.active { background: rgba(234, 235, 219, 0.15); border-color: rgba(234, 235, 219, 0.4); }
-    #panel .presets { display: flex; gap: 6px; margin: 0 0 2px; }
-    #panel .presets button { width: auto; flex: 1; margin-top: 0; padding: 6px 4px; font-size: 10px; transition: border-color 0.15s, box-shadow 0.15s; }
-    #panel .presets button.empty { opacity: 0.45; }
-    #panel .presets button.filled { border-color: rgba(234, 235, 219, 0.4); }
-    #panel .presets.save-mode button {
-      border-color: rgba(234, 235, 219, 0.55); cursor: copy;
-      box-shadow: 0 0 0 2px rgba(234, 235, 219, 0.08);
-      opacity: 1;
-    }
-    #panel .hint { font-size: 9px; opacity: 0.4; text-align: center; margin-bottom: 8px; }
   </style>
   <script type="importmap">
   {
@@ -148,415 +29,723 @@
   </script>
 </head>
 <body>
-  <div id="panel">
-    <div class="header" id="panel-header">
-      <span class="title">Controls</span>
-      <button class="toggle" id="panel-toggle" title="Collapse">−</button>
-    </div>
-    <div class="body" id="panel-body">
-      <div class="color-row">
-        <span>Color <span class="info" data-tip="Base color of the material. Tints everything except emissive light.">?</span></span>
-        <input id="color" type="color" value="#eaebdb" />
-      </div>
-      <div class="color-row">
-        <span>Emissive <span class="info" data-tip="Self-lit color that ignores scene lighting. Black = off. Pair with Emissive Int. to make the logo glow.">?</span></span>
-        <input id="emissive" type="color" value="#000000" />
-      </div>
-      <div class="check-row">
-        <span>Mouse tilt <span class="info" data-tip="Logo rotates to follow the cursor. Turn off to only use orbit controls (drag/scroll on canvas).">?</span></span>
-        <input id="tilt" type="checkbox" checked />
-      </div>
-    </div>
-  </div>
+  <nav class="a11y" aria-label="Download Faro">
+    <a href="https://apps.apple.com/" id="link-ios">Download on the App Store</a>
+    <a href="https://play.google.com/" id="link-android">Get it on Google Play</a>
+  </nav>
+
   <script type="module">
     import * as THREE from 'three';
     import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+    import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
+    // ---------- renderer / scene ----------
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
     document.body.appendChild(renderer.domElement);
+    const canvas = renderer.domElement;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a0a);
+    scene.background = new THREE.Color(0x07070a);
+    scene.fog = new THREE.Fog(0x07070a, 1200, 2400);
 
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
-    camera.position.set(0, 0, 800);
+    // near plane pushed close to the scene depth (camera z=950, content near z=0)
+    // — dramatically improves depth-buffer precision so decals don't z-fight the card base.
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 100, 4000);
+    camera.position.set(0, 0, 950);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const key = new THREE.DirectionalLight(0xffffff, 1.2);
-    key.position.set(300, 400, 500);
+    // PBR environment so metallic surfaces have something to reflect
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+    // ---------- lights ----------
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    const key = new THREE.DirectionalLight(0xfff2d8, 1.2);
+    key.position.set(300, 500, 600);
     scene.add(key);
+    const rim = new THREE.DirectionalLight(0x88aaff, 0.6);
+    rim.position.set(-400, -200, -300);
+    scene.add(rim);
 
-    const pivot = new THREE.Group();
-    scene.add(pivot);
+    // ---------- post-processing ----------
+    // MSAA render target sized to device pixels — EffectComposer's default target
+    // skips the renderer's antialias flag, so we supply our own multisampled one.
+    const dpr = renderer.getPixelRatio();
+    const msaaTarget = new THREE.WebGLRenderTarget(
+      Math.floor(window.innerWidth * dpr),
+      Math.floor(window.innerHeight * dpr),
+      { samples: 4, type: THREE.HalfFloatType },
+    );
+    const composer = new EffectComposer(renderer, msaaTarget);
+    composer.setPixelRatio(dpr);
+    composer.setSize(window.innerWidth, window.innerHeight);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      0.25,    // strength
+      0.5,    // radius
+      0.85,   // threshold — above decal icon brightness, below gold-emissive peak
+    );
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
 
-    const logoGroup = new THREE.Group();
-    logoGroup.scale.y = -1;
-    pivot.add(logoGroup);
-
-    const material = new THREE.MeshPhysicalMaterial({
+    // ---------- shared material for logo + cards ----------
+    const goldMaterial = new THREE.MeshPhysicalMaterial({
       color: 0xeaebdb,
-      metalness: 0.2,
-      roughness: 0.4,
-      clearcoat: 0,
-      clearcoatRoughness: 0.2,
-      emissive: 0x000000,
-      emissiveIntensity: 1,
+      metalness: 0.55,
+      roughness: 0.32,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.25,
+      emissive: 0xeaebdb,
+      emissiveIntensity: 0.08,
     });
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.enablePan = false;
-    controls.minDistance = 200;
-    controls.maxDistance = 1800;
+    const cardBaseMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x14141a,
+      metalness: 0.6,
+      roughness: 0.4,
+      clearcoat: 0.4,
+      clearcoatRoughness: 0.35,
+      transparent: true,
+    });
 
-    const defaults = {
-      depth: 120,
-      bevelThickness: 22,
-      bevelSize: 16,
+
+    // ---------- logo ----------
+    const logoPivot = new THREE.Group();
+    const logoTilt = new THREE.Group();   // mouse tilt (lerped target)
+    const logoSpin = new THREE.Group();   // flip rotation
+    logoPivot.add(logoTilt);
+    logoTilt.add(logoSpin);
+    scene.add(logoPivot);
+
+    const logoFull = new THREE.Group();   // faro_logo.svg — front face
+    const logoIcon = new THREE.Group();   // faro_icon.svg — back face (post-flip)
+    logoSpin.add(logoFull);
+    logoSpin.add(logoIcon);
+    logoIcon.visible = false;
+
+    const TARGET_LOGO_HEIGHT = 480;
+    const EXTRUDE_OPTS = {
+      depth: 110,
+      bevelEnabled: true,
+      bevelThickness: 18,
+      bevelSize: 14,
+      bevelOffset: 0,
       bevelSegments: 16,
       curveSegments: 48,
-      bevelOffset: 0,
       steps: 1,
-      metalness: 0.2,
-      roughness: 0.4,
-      clearcoat: 0,
-      clearcoatRoughness: 0.2,
-      emissiveIntensity: 1,
-      logoSize: 500,
-      color: '#eaebdb',
-      emissiveColor: '#000000',
-      tiltEnabled: true,
     };
-    const params = { ...defaults };
 
-    let shapesCache = [];
-
-    function fitLogo() {
-      pivot.scale.setScalar(1);
-      logoGroup.position.set(0, 0, 0);
-      pivot.updateMatrixWorld(true);
-
-      const box = new THREE.Box3().setFromObject(logoGroup);
-      const center = box.getCenter(new THREE.Vector3());
-      const size = box.getSize(new THREE.Vector3());
-      logoGroup.position.set(-center.x, -center.y, -center.z);
-
-      if (size.y > 0) pivot.scale.setScalar(params.logoSize / size.y);
-    }
-
-    function rebuildGeometry() {
-      for (const child of logoGroup.children) child.geometry?.dispose();
-      logoGroup.clear();
-
-      for (const shape of shapesCache) {
-        const geometry = new THREE.ExtrudeGeometry(shape, {
-          depth: params.depth,
-          bevelEnabled: true,
-          bevelThickness: params.bevelThickness,
-          bevelSize: params.bevelSize,
-          bevelOffset: params.bevelOffset,
-          bevelSegments: Math.max(1, Math.round(params.bevelSegments)),
-          curveSegments: Math.max(4, Math.round(params.curveSegments)),
-          steps: Math.max(1, Math.round(params.steps)),
-        });
-        logoGroup.add(new THREE.Mesh(geometry, material));
-      }
-
-      fitLogo();
-    }
-
-    const loader = new SVGLoader();
-    loader.load('faro_logo.svg', (data) => {
-      for (const path of data.paths) {
-        for (const shape of SVGLoader.createShapes(path)) {
-          shapesCache.push(shape);
+    function loadLogoInto(url, outerGroup) {
+      // outerGroup → inner (Y-flipped for SVG coords) → meshes.
+      // Each SVG is fit independently to TARGET_LOGO_HEIGHT so the in-flight swap is seamless.
+      const inner = new THREE.Group();
+      inner.scale.y = -1;
+      outerGroup.add(inner);
+      new SVGLoader().load(url, (data) => {
+        for (const path of data.paths) {
+          for (const shape of SVGLoader.createShapes(path)) {
+            const geom = new THREE.ExtrudeGeometry(shape, EXTRUDE_OPTS);
+            inner.add(new THREE.Mesh(geom, goldMaterial));
+          }
         }
-      }
-      rebuildGeometry();
-    });
-
-    const sliders = [
-      { key: 'depth', label: 'Depth', min: 0, max: 400, step: 1, tip: 'How far the shape is extruded along Z. Higher = thicker 3D logo.' },
-      { key: 'bevelThickness', label: 'Bevel Thickness', min: 0, max: 80, step: 0.5, tip: 'Z-span of the rolled edge — how much depth the rollover takes up.' },
-      { key: 'bevelSize', label: 'Bevel Size', min: 0, max: 40, step: 0.5, tip: 'How far the bevel eats inward on the X-Y plane before curving back out to meet the silhouette.' },
-      { key: 'bevelOffset', label: 'Bevel Offset', min: -20, max: 20, step: 0.5, tip: 'Shifts the whole bevel profile in or out. Negative pulls inward; positive pushes outward.' },
-      { key: 'bevelSegments', label: 'Bevel Segments', min: 1, max: 24, step: 1, tip: 'Smoothness of the bevel curve. More segments = rounder, smoother edge.' },
-      { key: 'curveSegments', label: 'Curve Segments', min: 4, max: 64, step: 1, tip: 'Subdivisions along the SVG path curves. Higher = smoother curved outlines.' },
-      { key: 'steps', label: 'Extrude Steps', min: 1, max: 10, step: 1, tip: 'Subdivisions along the Z axis. No visible change on a static shape; useful if you deform the mesh.' },
-      { key: 'logoSize', label: 'Logo Size', min: 100, max: 1000, step: 10, tip: 'Target height of the logo in world units. Scales the pivot — does not change camera perspective.' },
-      { key: 'metalness', label: 'Metalness', min: 0, max: 1, step: 0.01, tip: 'PBR metalness. 0 = non-metal (plastic/ceramic), 1 = pure metal.' },
-      { key: 'roughness', label: 'Roughness', min: 0, max: 1, step: 0.01, tip: 'PBR roughness. 0 = mirror-smooth, 1 = completely matte.' },
-      { key: 'clearcoat', label: 'Clearcoat', min: 0, max: 1, step: 0.01, tip: 'Strength of a glossy top layer over the base material, like car paint.' },
-      { key: 'clearcoatRoughness', label: 'Clearcoat Rough.', min: 0, max: 1, step: 0.01, tip: 'Roughness of the clearcoat layer. 0 = sharp reflection, 1 = blurry/satin.' },
-      { key: 'emissiveIntensity', label: 'Emissive Int.', min: 0, max: 2, step: 0.01, tip: 'Brightness of the emissive color. 0 = no glow. Pairs with the Emissive color picker.' },
-    ];
-
-    const materialOnlyKeys = new Set(['metalness', 'roughness', 'clearcoat', 'clearcoatRoughness', 'emissiveIntensity']);
-
-    const panel = document.getElementById('panel');
-    const panelBody = document.getElementById('panel-body');
-    const sliderInputs = {};
-    const valueEls = {};
-    const fmt = (v, step) => Number(v).toFixed(step < 1 ? 2 : 0);
-
-    for (const s of sliders) {
-      const row = document.createElement('div');
-      row.className = 'row';
-      row.innerHTML = `
-        <div class="label"><span>${s.label} <span class="info" data-tip="${s.tip}">?</span></span><span class="val"></span></div>
-        <input type="range" min="${s.min}" max="${s.max}" step="${s.step}" value="${params[s.key]}" />
-      `;
-      panelBody.appendChild(row);
-      const input = row.querySelector('input');
-      const val = row.querySelector('.val');
-      sliderInputs[s.key] = input;
-      valueEls[s.key] = val;
-      val.textContent = fmt(params[s.key], s.step);
-      input.addEventListener('input', () => {
-        const v = parseFloat(input.value);
-        params[s.key] = v;
-        val.textContent = fmt(v, s.step);
-        if (materialOnlyKeys.has(s.key)) material[s.key] = v;
-        else if (s.key === 'logoSize') fitLogo();
-        else rebuildGeometry();
+        const box = new THREE.Box3().setFromObject(inner);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        inner.position.set(-center.x, -center.y, -center.z);
+        outerGroup.scale.setScalar(TARGET_LOGO_HEIGHT / size.y);
       });
     }
 
-    const colorInput = document.getElementById('color');
-    colorInput.addEventListener('input', (e) => {
-      params.color = e.target.value;
-      material.color.set(e.target.value);
-    });
+    loadLogoInto('faro_logo.svg', logoFull);
+    loadLogoInto('faro_icon.svg', logoIcon);
 
-    const emissiveInput = document.getElementById('emissive');
-    emissiveInput.addEventListener('input', (e) => {
-      params.emissiveColor = e.target.value;
-      material.emissive.set(e.target.value);
-    });
-
-    const tiltInput = document.getElementById('tilt');
-    tiltInput.addEventListener('change', (e) => {
-      params.tiltEnabled = e.target.checked;
-    });
-
-    function applyParams(source) {
-      Object.assign(params, source);
-      for (const s of sliders) {
-        sliderInputs[s.key].value = params[s.key];
-        valueEls[s.key].textContent = fmt(params[s.key], s.step);
-      }
-      material.metalness = params.metalness;
-      material.roughness = params.roughness;
-      material.clearcoat = params.clearcoat;
-      material.clearcoatRoughness = params.clearcoatRoughness;
-      material.emissiveIntensity = params.emissiveIntensity;
-      material.color.set(params.color);
-      material.emissive.set(params.emissiveColor);
-      colorInput.value = params.color;
-      emissiveInput.value = params.emissiveColor;
-      tiltInput.checked = params.tiltEnabled;
-      rebuildGeometry();
+    // ---------- cards ----------
+    function roundedRectShape(w, h, r) {
+      const shape = new THREE.Shape();
+      shape.moveTo(-w/2 + r, -h/2);
+      shape.lineTo(w/2 - r, -h/2);
+      shape.quadraticCurveTo(w/2, -h/2, w/2, -h/2 + r);
+      shape.lineTo(w/2, h/2 - r);
+      shape.quadraticCurveTo(w/2, h/2, w/2 - r, h/2);
+      shape.lineTo(-w/2 + r, h/2);
+      shape.quadraticCurveTo(-w/2, h/2, -w/2, h/2 - r);
+      shape.lineTo(-w/2, -h/2 + r);
+      shape.quadraticCurveTo(-w/2, -h/2, -w/2 + r, -h/2);
+      return shape;
     }
 
-    const PRESET_KEY = 'faro-presets';
-    let presets = [];
-    try { presets = JSON.parse(localStorage.getItem(PRESET_KEY) || '[]'); } catch { presets = []; }
+    function makeBadgeTexture(kind) {
+      const W = 1024, H = 320;
+      const c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, W, H);
 
-    const presetsHeader = document.createElement('div');
-    presetsHeader.className = 'presets-header';
-    presetsHeader.innerHTML = `<span class="presets-title">Presets</span><button class="save-btn" type="button">Save to…</button>`;
-    panelBody.appendChild(presetsHeader);
-    const saveBtn = presetsHeader.querySelector('.save-btn');
+      const fg = '#eaebdb';
+      ctx.fillStyle = fg;
+      ctx.strokeStyle = fg;
 
-    const presetsRow = document.createElement('div');
-    presetsRow.className = 'presets';
-    const presetBtns = [];
-    for (let i = 0; i < 3; i++) {
-      const b = document.createElement('button');
-      presetBtns.push(b);
-      presetsRow.appendChild(b);
-      b.addEventListener('click', () => {
-        if (saveMode) {
-          if (presets[i] && !confirm(`Overwrite Slot ${i+1}?`)) { setSaveMode(false); return; }
-          presets[i] = { ...params };
-          localStorage.setItem(PRESET_KEY, JSON.stringify(presets));
-          setSaveMode(false);
-          renderPresetBtns();
-          b.textContent = 'Saved!';
-          setTimeout(renderPresetBtns, 900);
-        } else if (presets[i]) {
-          applyParams(presets[i]);
-        }
-      });
-    }
-    panelBody.appendChild(presetsRow);
-
-    const presetHint = document.createElement('div');
-    presetHint.className = 'hint';
-    panelBody.appendChild(presetHint);
-
-    let saveMode = false;
-    function setSaveMode(on) {
-      saveMode = on;
-      presetsRow.classList.toggle('save-mode', on);
-      saveBtn.classList.toggle('active', on);
-      saveBtn.textContent = on ? 'Cancel' : 'Save to…';
-      presetHint.textContent = on ? 'pick a slot to save into (Esc to cancel)' : 'click a slot to load';
-    }
-    saveBtn.addEventListener('click', () => setSaveMode(!saveMode));
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && saveMode) setSaveMode(false);
-    });
-
-    function renderPresetBtns() {
-      for (let i = 0; i < 3; i++) {
-        const filled = !!presets[i];
-        presetBtns[i].className = filled ? 'filled' : 'empty';
-        presetBtns[i].textContent = filled ? `Slot ${i+1} ●` : `Slot ${i+1}`;
-      }
-    }
-    renderPresetBtns();
-    setSaveMode(false);
-
-    const copyBtn = document.createElement('button');
-    copyBtn.textContent = 'Copy Settings';
-    panelBody.appendChild(copyBtn);
-    copyBtn.addEventListener('click', () => {
-      const snippet = JSON.stringify(params, null, 2);
-      navigator.clipboard?.writeText(snippet);
-      copyBtn.textContent = 'Copied!';
-      setTimeout(() => (copyBtn.textContent = 'Copy Settings'), 1200);
-    });
-
-    const resetBtn = document.createElement('button');
-    resetBtn.textContent = 'Reset';
-    panelBody.appendChild(resetBtn);
-    resetBtn.addEventListener('click', () => {
-      applyParams(defaults);
-      camera.position.set(0, 0, 800);
-      controls.target.set(0, 0, 0);
-      controls.update();
-    });
-
-    const panelHeader = document.getElementById('panel-header');
-    const panelToggle = document.getElementById('panel-toggle');
-
-    let savedHeight = '';
-    panelToggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const willCollapse = !panel.classList.contains('collapsed');
-      if (willCollapse) {
-        savedHeight = panel.style.height;
-        panel.style.height = '';
+      // icon (left), aligned vertically center — drawn via Path2D from SVG paths
+      const iconCx = 150, iconCy = H/2;
+      ctx.save();
+      if (kind === 'ios') {
+        // Apple silhouette — viewBox 24×24
+        const s = 7.5;  // 180px
+        ctx.translate(iconCx - 12 * s, iconCy - 12 * s);
+        ctx.scale(s, s);
+        ctx.fill(new Path2D('M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z'));
       } else {
-        panel.style.height = savedHeight;
+        // Google Play — official 4-color triangle (viewBox 466 × 511.98)
+        const s = 200 / 511.98;
+        ctx.translate(iconCx - 466 * s * 0.5, iconCy - 511.98 * s * 0.5);
+        ctx.scale(s, s);
+        ctx.fillStyle = '#EA4335';
+        ctx.fill(new Path2D('M199.9 237.8l-198.5 232.37c7.22,24.57 30.16,41.81 55.8,41.81 11.16,0 20.93,-2.79 29.3,-8.37l0 0 244.16 -139.46 -130.76 -126.35z'));
+        ctx.fillStyle = '#FBBC04';
+        ctx.fill(new Path2D('M433.91 205.1l0 0 -104.65 -60 -111.61 110.22 113.01 108.83 104.64 -58.6c18.14,-9.77 30.7,-29.3 30.7,-50.23 -1.4,-20.93 -13.95,-40.46 -32.09,-50.22z'));
+        ctx.fillStyle = '#34A853';
+        ctx.fill(new Path2D('M199.42 273.45l129.85 -128.35 -241.37 -136.73c-8.37,-5.58 -19.54,-8.37 -30.7,-8.37 -26.5,0 -50.22,18.14 -55.8,41.86 0,0 0,0 0,0l198.02 231.59z'));
+        ctx.fillStyle = '#4285F4';
+        ctx.fill(new Path2D('M1.39 41.86c-1.39,4.18 -1.39,9.77 -1.39,15.34l0 397.64c0,5.57 0,9.76 1.4,15.34l216.27 -214.86 -216.28 -213.46z'));
       }
-      panel.classList.toggle('collapsed');
-      panelToggle.textContent = willCollapse ? '+' : '−';
-      panelToggle.title = willCollapse ? 'Expand' : 'Collapse';
-    });
+      ctx.restore();
 
-    const grip = document.createElement('div');
-    grip.className = 'grip';
-    panel.appendChild(grip);
-    let resizeState = null;
-    grip.addEventListener('pointerdown', (e) => {
-      e.stopPropagation();
-      const rect = panel.getBoundingClientRect();
-      resizeState = {
-        id: e.pointerId,
-        startX: e.clientX, startY: e.clientY,
-        startW: rect.width, startH: rect.height,
+      // text block (right of icon)
+      const textX = 280;
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = fg;
+
+      ctx.font = '300 56px ui-sans-serif, -apple-system, "Segoe UI", Inter, sans-serif';
+      ctx.fillText(kind === 'ios' ? 'Download on the' : 'Get it on', textX, H/2 - 18);
+
+      ctx.font = '600 116px ui-sans-serif, -apple-system, "Segoe UI", Inter, sans-serif';
+      ctx.fillText(kind === 'ios' ? 'App Store' : 'Google Play', textX, H/2 + 92);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return tex;
+    }
+
+    function createCard(kind, href) {
+      const group = new THREE.Group();
+      const w = 420, h = 130, depth = 28, radius = 22;
+      const shape = roundedRectShape(w, h, radius);
+      const geom = new THREE.ExtrudeGeometry(shape, {
+        depth,
+        bevelEnabled: true,
+        bevelThickness: 4,
+        bevelSize: 4,
+        bevelSegments: 6,
+        curveSegments: 16,
+      });
+      geom.translate(0, 0, -depth / 2);
+      const base = new THREE.Mesh(geom, cardBaseMaterial);
+      group.add(base);
+
+      // badge decal floats just above the front face
+      const tex = makeBadgeTexture(kind);
+      const decalMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
+      const decal = new THREE.Mesh(new THREE.PlaneGeometry(w - 60, (w - 60) * (320 / 1024)), decalMat);
+      decal.position.z = depth / 2 + 15;
+      group.add(decal);
+
+      // a thin emissive border ring for premium feel — same shape, slightly larger,
+      // rendered behind the card so it haloes when bloom hits it
+      const ringShape = roundedRectShape(w + 6, h + 6, radius + 3);
+      const ringGeom = new THREE.ShapeGeometry(ringShape);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xeaebdb,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+      });
+      const ring = new THREE.Mesh(ringGeom, ringMat);
+      ring.position.z = -depth / 2 - 1;
+      group.add(ring);
+
+      group.userData = { kind, href, base, decal, ring, w, h, hover: 0, hoverTarget: 0 };
+      group.visible = false;
+      return group;
+    }
+
+    const cardA = createCard('ios', document.getElementById('link-ios').href);
+    const cardB = createCard('android', document.getElementById('link-android').href);
+    scene.add(cardA);
+    scene.add(cardB);
+
+    // ---------- nav cards (Blog / Legal / Contact) ----------
+    function makeNavCardTexture(label, type) {
+      // Canvas ratio matches the decal PlaneGeometry ratio (w-8) : (h-8) = 142:52 ≈ 2.73:1
+      const W = 512, H = 188;
+      const c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, W, H);
+
+      const fg = '#eaebdb';
+      ctx.strokeStyle = fg;
+      ctx.fillStyle = fg;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // icon — centered in the left 130px column
+      const ix = 65, iy = H / 2;
+      if (type === 'blog') {
+        // three text lines (like a document)
+        ctx.lineWidth = 14;
+        const lens = [54, 54, 36];
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.moveTo(ix - lens[i] / 2, iy - 26 + i * 26);
+          ctx.lineTo(ix + lens[i] / 2, iy - 26 + i * 26);
+          ctx.stroke();
+        }
+      } else if (type === 'legal') {
+        // scales of justice
+        ctx.lineWidth = 10;
+        ctx.beginPath(); ctx.moveTo(ix, iy - 34); ctx.lineTo(ix, iy + 34); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ix - 26, iy - 34); ctx.lineTo(ix + 26, iy - 34); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ix - 26, iy - 34); ctx.lineTo(ix - 34, iy + 4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ix + 26, iy - 34); ctx.lineTo(ix + 34, iy + 4); ctx.stroke();
+        ctx.lineWidth = 8;
+        ctx.beginPath(); ctx.arc(ix - 34, iy + 4, 12, 0, Math.PI); ctx.stroke();
+        ctx.beginPath(); ctx.arc(ix + 34, iy + 4, 12, 0, Math.PI); ctx.stroke();
+      } else if (type === 'contact') {
+        // envelope
+        ctx.lineWidth = 10;
+        const ex = ix, ey = iy, ew = 70, eh = 50;
+        ctx.strokeRect(ex - ew / 2, ey - eh / 2, ew, eh);
+        ctx.beginPath();
+        ctx.moveTo(ex - ew / 2, ey - eh / 2);
+        ctx.lineTo(ex, ey + 6);
+        ctx.lineTo(ex + ew / 2, ey - eh / 2);
+        ctx.stroke();
+      }
+
+      // subtle divider
+      ctx.globalAlpha = 0.18;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(130, 22); ctx.lineTo(130, H - 22); ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // label text — centered in the right column
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = fg;
+      ctx.font = '500 72px ui-sans-serif, -apple-system, "Segoe UI", Inter, sans-serif';
+      ctx.fillText(label.toUpperCase(), 130 + (W - 130) / 2, H / 2);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return tex;
+    }
+
+    function createNavCard(label, href, type) {
+      const group = new THREE.Group();
+      const w = 150, h = 60, depth = 10, radius = 13;
+      const shape = roundedRectShape(w, h, radius);
+      const geom = new THREE.ExtrudeGeometry(shape, {
+        depth,
+        bevelEnabled: true,
+        bevelThickness: 2,
+        bevelSize: 2,
+        bevelSegments: 4,
+        curveSegments: 10,
+      });
+      geom.translate(0, 0, -depth / 2);
+
+      const baseMat = new THREE.MeshPhysicalMaterial({
+        color: 0x14141a,
+        metalness: 0.6,
+        roughness: 0.4,
+        clearcoat: 0.4,
+        clearcoatRoughness: 0.35,
+        transparent: true,
+      });
+      const base = new THREE.Mesh(geom, baseMat);
+      group.add(base);
+
+      // badge decal floats just above the front face — same pattern as download cards
+      const tex = makeNavCardTexture(label, type);
+      const decalMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
+      const decal = new THREE.Mesh(
+        new THREE.PlaneGeometry(w - 8, (w - 8) * (188 / 512)),
+        decalMat,
+      );
+      decal.position.z = depth / 2 + 10;
+      group.add(decal);
+
+      const ringShape = roundedRectShape(w + 6, h + 6, radius + 3);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xeaebdb, transparent: true, opacity: 0, depthWrite: false,
+      });
+      const ring = new THREE.Mesh(new THREE.ShapeGeometry(ringShape), ringMat);
+      ring.position.z = -depth / 2 - 1;
+      group.add(ring);
+
+      group.userData = { label, href, baseMat, decal, ring, hover: 0, hoverTarget: 0 };
+      group.visible = false;
+      return group;
+    }
+
+    const navBlog    = createNavCard('Blog',    '/blog',                'blog');
+    const navLegal   = createNavCard('Legal',   '/legal',               'legal');
+    const navContact = createNavCard('Contact', 'mailto:hello@faro.app', 'contact');
+    const navCards   = [navBlog, navLegal, navContact];
+    navCards.forEach(c => scene.add(c));
+
+    // ---------- layout (responsive) ----------
+    function getLayout() {
+      const portrait = window.innerWidth < window.innerHeight * 1.05;
+      const aspect = window.innerWidth / window.innerHeight;
+      // viewport extents in world units at z=0 (camera z=950, FOV 38°)
+      const vpH = 2 * 950 * Math.tan(19 * Math.PI / 180);
+      const vpW = vpH * aspect;
+      const navScale = 0.13;
+      const iconHalf = TARGET_LOGO_HEIGHT * navScale * 0.5;
+      const logoNavX = -vpW * 0.5 + iconHalf + vpW * 0.04;
+      const logoNavY =  vpH * 0.5 - iconHalf - vpH * 0.05;
+      if (portrait) {
+        return {
+          logoNavX, logoNavY, logoNavScale: navScale,
+          cardScale: 0.9,
+          cardPositions: [
+            { x: 0, y: 70 },
+            { x: 0, y: -65 },
+          ],
+          navCardScale: 0.65,
+          navCardPositions: [
+            { x: -130, y: -180 },
+            { x:    0, y: -180 },
+            { x:  130, y: -180 },
+          ],
+        };
+      }
+      return {
+        logoNavX, logoNavY, logoNavScale: navScale,
+        cardScale: 0.9,
+        cardPositions: [
+          { x: 0, y: 80 },
+          { x: 0, y: -60 },
+        ],
+        navCardScale: 0.9,
+        navCardPositions: [
+          { x: -195, y: -190 },
+          { x:    0, y: -190 },
+          { x:  195, y: -190 },
+        ],
       };
-      grip.setPointerCapture(e.pointerId);
-    });
-    grip.addEventListener('pointermove', (e) => {
-      if (!resizeState || e.pointerId !== resizeState.id) return;
-      const w = Math.max(200, Math.min(520, resizeState.startW + (e.clientX - resizeState.startX)));
-      const h = Math.max(80, Math.min(window.innerHeight - 16, resizeState.startH + (e.clientY - resizeState.startY)));
-      panel.style.width = w + 'px';
-      panel.style.height = h + 'px';
-    });
-    const endResize = (e) => {
-      if (!resizeState || e.pointerId !== resizeState.id) return;
-      grip.releasePointerCapture(resizeState.id);
-      resizeState = null;
+    }
+    let layout = getLayout();
+
+    // ---------- state machine ----------
+    const STATE = { IDLE: 'idle', FLIPPING: 'flipping', REVEALED: 'revealed', RETURNING: 'returning' };
+    let state = STATE.IDLE;
+    let stateT = 0;
+    const FLIP_DURATION = 0.95;
+    const RETURN_DURATION = 0.7;
+
+    function setState(next) {
+      state = next;
+      stateT = 0;
+      if (next === STATE.REVEALED) {
+        cardA.visible = true;
+        cardB.visible = true;
+      }
+    }
+
+    // ---------- easings ----------
+    const clamp01 = (t) => Math.max(0, Math.min(1, t));
+    const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+    const easeOutBack = (t) => {
+      const s = 1.6;
+      const u = t - 1;
+      return 1 + (s + 1) * u * u * u + s * u * u;
     };
-    grip.addEventListener('pointerup', endResize);
-    grip.addEventListener('pointercancel', endResize);
 
-    const tooltip = document.createElement('div');
-    tooltip.className = 'tooltip';
-    document.body.appendChild(tooltip);
-    panel.addEventListener('mouseover', (e) => {
-      const info = e.target.closest('.info');
-      if (!info) return;
-      tooltip.textContent = info.dataset.tip;
-      tooltip.style.display = 'block';
-      const r = info.getBoundingClientRect();
-      const tipW = 180 + 16;
-      let left = r.left - tipW - 2;
-      if (left < 8) left = r.right + 8;
-      tooltip.style.left = left + 'px';
-      tooltip.style.top = (r.top + r.height / 2) + 'px';
-      tooltip.style.transform = 'translateY(-50%)';
-    });
-    panel.addEventListener('mouseout', (e) => {
-      if (e.target.closest('.info')) tooltip.style.display = 'none';
-    });
+    // ---------- mouse / raycasting ----------
+    const mouse = new THREE.Vector2();   // -1..1 for tilt
+    const ndc = new THREE.Vector2();     // -1..1 for raycaster
+    const raycaster = new THREE.Raycaster();
 
-    let dragState = null;
-    panelHeader.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('.toggle')) return;
-      const rect = panel.getBoundingClientRect();
-      panel.style.left = rect.left + 'px';
-      panel.style.top = rect.top + 'px';
-      panel.style.right = 'auto';
-      dragState = { dx: e.clientX - rect.left, dy: e.clientY - rect.top, id: e.pointerId };
-      panelHeader.setPointerCapture(e.pointerId);
-      panel.classList.add('dragging');
-    });
-    panelHeader.addEventListener('pointermove', (e) => {
-      if (!dragState || e.pointerId !== dragState.id) return;
-      const maxX = window.innerWidth - panel.offsetWidth;
-      const maxY = window.innerHeight - panel.offsetHeight;
-      const x = Math.max(0, Math.min(maxX, e.clientX - dragState.dx));
-      const y = Math.max(0, Math.min(maxY, e.clientY - dragState.dy));
-      panel.style.left = x + 'px';
-      panel.style.top = y + 'px';
-    });
-    const endDrag = (e) => {
-      if (!dragState || e.pointerId !== dragState.id) return;
-      panelHeader.releasePointerCapture(dragState.id);
-      dragState = null;
-      panel.classList.remove('dragging');
-    };
-    panelHeader.addEventListener('pointerup', endDrag);
-    panelHeader.addEventListener('pointercancel', endDrag);
-
-    const mouse = { x: 0, y: 0 };
-    window.addEventListener('pointermove', (e) => {
+    canvas.addEventListener('pointermove', (e) => {
       mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
       mouse.y = (e.clientY / window.innerHeight) * 2 - 1;
+      ndc.x = mouse.x;
+      ndc.y = -mouse.y;
     });
+
+    function pick() {
+      raycaster.setFromCamera(ndc, camera);
+      const targets = state === STATE.IDLE
+        ? [logoSpin]
+        : state === STATE.REVEALED
+          ? [logoSpin, cardA, cardB, ...navCards]
+          : [];
+      const hits = raycaster.intersectObjects(targets, true);
+      if (!hits.length) return null;
+      let o = hits[0].object;
+      while (o && o !== scene) {
+        if (o === cardA) return { kind: 'card', card: cardA };
+        if (o === cardB) return { kind: 'card', card: cardB };
+        if (navCards.includes(o)) return { kind: 'nav', card: o };
+        if (o === logoSpin || o.parent === logoSpin) return { kind: 'logo' };
+        o = o.parent;
+      }
+      return null;
+    }
+
+    canvas.addEventListener('pointerdown', () => {
+      const hit = pick();
+      if (state === STATE.IDLE && hit?.kind === 'logo') {
+        setState(STATE.FLIPPING);
+      } else if (state === STATE.REVEALED && hit?.kind === 'logo') {
+        setState(STATE.RETURNING);
+      } else if (state === STATE.REVEALED && hit?.kind === 'card') {
+        const href = hit.card.userData.href;
+        if (href) window.open(href, '_blank', 'noopener');
+      } else if (state === STATE.REVEALED && hit?.kind === 'nav') {
+        const href = hit.card.userData.href;
+        if (href) window.open(href, '_blank', 'noopener');
+      } else if (state === STATE.REVEALED && !hit) {
+        setState(STATE.RETURNING);
+      }
+    });
+
+    // ---------- animation loop ----------
+    const clock = new THREE.Clock();
+    let time = 0;
+
+    // current animated values (interpolated each frame)
+    const cur = {
+      logoX: 0,
+      logoY: 0,
+      logoScale: 1,
+      logoFlip: 0,
+      logoTiltX: 0,
+      logoTiltY: 0,
+      cardOpacity: 0,
+      cardScale: 0.6,
+      cardYOffset: 80,
+      navCardOpacity: 0,
+      navCardYOffset: 60,
+      emissive: 0.08,
+    };
+
+    function updateIdle(dt) {
+      // breathing — slow sin wave under the mouse tilt
+      const breathY = Math.sin(time * 0.5) * 0.03;
+      const breathX = Math.sin(time * 0.4 + 1.3) * 0.02;
+      const targetY = mouse.x * 0.28 + breathY;
+      const targetX = mouse.y * 0.16 + breathX;
+      cur.logoTiltY += (targetY - cur.logoTiltY) * 0.07;
+      cur.logoTiltX += (targetX - cur.logoTiltX) * 0.07;
+
+      // quartic pulse: spends most of the ~3.5s cycle near-black,
+      // then crests sharply into bloom range — the visual tap cue
+      const pingPhase = (Math.sin(time * 1.8) + 1) * 0.5;  // 0..1
+      const ping4 = pingPhase * pingPhase * pingPhase * pingPhase;
+      const pulse = 0.04 + ping4 * 0.65;
+      cur.emissive += (pulse - cur.emissive) * 0.08;
+
+      // ease back to home transform (scale breathes in sync with glow)
+      cur.logoX += (0 - cur.logoX) * 0.08;
+      cur.logoY += (0 - cur.logoY) * 0.08;
+      cur.logoScale += (1 + ping4 * 0.05 - cur.logoScale) * 0.06;
+      cur.logoFlip += (0 - cur.logoFlip) * 0.1;
+      cur.cardOpacity += (0 - cur.cardOpacity) * 0.1;
+      cur.cardScale += (0.6 - cur.cardScale) * 0.1;
+      cur.cardYOffset += (80 - cur.cardYOffset) * 0.1;
+      if (cur.cardOpacity < 0.01) {
+        cardA.visible = false;
+        cardB.visible = false;
+      }
+      cur.navCardOpacity += (0 - cur.navCardOpacity) * 0.1;
+      cur.navCardYOffset += (60 - cur.navCardYOffset) * 0.1;
+      if (cur.navCardOpacity < 0.01) navCards.forEach(c => c.visible = false);
+    }
+
+    function updateFlipping(dt) {
+      stateT = clamp01(stateT + dt / FLIP_DURATION);
+      const t = stateT;
+      cur.logoFlip = easeOutBack(t) * Math.PI;
+      // fly logo to nav corner in sync with the flip
+      const nav = easeInOutCubic(t);
+      cur.logoX = layout.logoNavX * nav;
+      cur.logoY = layout.logoNavY * nav;
+      cur.logoScale = 1 + (layout.logoNavScale - 1) * nav;
+      cur.logoTiltX += (0 - cur.logoTiltX) * 0.15;
+      cur.logoTiltY += (0 - cur.logoTiltY) * 0.15;
+      const flare = 0.08 + Math.sin(t * Math.PI) * 0.18;
+      cur.emissive += (flare - cur.emissive) * 0.15;
+
+      // download cards appear after logo settles
+      const ct = clamp01((t - 0.72) / 0.28);
+      if (ct > 0) { cardA.visible = true; cardB.visible = true; }
+      cur.cardOpacity = easeOutCubic(ct);
+      cur.cardScale = 0.6 + 0.4 * easeOutBack(ct);
+      cur.cardYOffset = 80 * (1 - easeOutCubic(ct));
+
+      // nav cards trail in slightly after download cards
+      const nct = clamp01((t - 0.82) / 0.18);
+      if (nct > 0) navCards.forEach(c => c.visible = true);
+      cur.navCardOpacity = easeOutCubic(nct);
+      cur.navCardYOffset = 60 * (1 - easeOutCubic(nct));
+
+      if (t >= 1) setState(STATE.REVEALED);
+    }
+
+    function updateRevealed(dt) {
+      cur.logoX += (layout.logoNavX - cur.logoX) * 0.1;
+      cur.logoY += (layout.logoNavY - cur.logoY) * 0.1;
+      cur.logoScale += (layout.logoNavScale - cur.logoScale) * 0.1;
+      cur.logoFlip += (Math.PI - cur.logoFlip) * 0.08;
+      cur.logoTiltX += (0 - cur.logoTiltX) * 0.1;
+      cur.logoTiltY += (0 - cur.logoTiltY) * 0.1;
+      cur.cardOpacity += (1 - cur.cardOpacity) * 0.1;
+      cur.cardScale += (1 - cur.cardScale) * 0.1;
+      cur.cardYOffset += (0 - cur.cardYOffset) * 0.1;
+      cur.navCardOpacity += (1 - cur.navCardOpacity) * 0.1;
+      cur.navCardYOffset += (0 - cur.navCardYOffset) * 0.1;
+      cur.emissive += (0.1 - cur.emissive) * 0.05;
+    }
+
+    function updateReturning(dt) {
+      stateT = clamp01(stateT + dt / RETURN_DURATION);
+      cur.logoFlip += (0 - cur.logoFlip) * 0.14;
+      cur.logoX += (0 - cur.logoX) * 0.14;
+      cur.logoY += (0 - cur.logoY) * 0.14;
+      cur.logoScale += (1 - cur.logoScale) * 0.14;
+      cur.cardOpacity += (0 - cur.cardOpacity) * 0.2;
+      cur.cardScale += (0.6 - cur.cardScale) * 0.2;
+      cur.cardYOffset += (80 - cur.cardYOffset) * 0.2;
+      cur.navCardOpacity += (0 - cur.navCardOpacity) * 0.25;
+      cur.navCardYOffset += (60 - cur.navCardYOffset) * 0.2;
+      cur.emissive += (0.08 - cur.emissive) * 0.08;
+      if (stateT >= 1) setState(STATE.IDLE);
+    }
+
+    // hover state on cards (raycast each frame for smooth hover)
+    function updateCardHover(dt) {
+      let pointerOn = null;
+      if (state === STATE.IDLE) {
+        raycaster.setFromCamera(ndc, camera);
+        const hits = raycaster.intersectObject(logoSpin, true);
+        pointerOn = hits.length ? 'logo' : null;
+      } else if (state === STATE.REVEALED) {
+        raycaster.setFromCamera(ndc, camera);
+        const logoHits = raycaster.intersectObject(logoSpin, true);
+        if (logoHits.length) {
+          pointerOn = 'logo';
+        } else {
+          const hits = raycaster.intersectObjects([cardA, cardB, ...navCards], true);
+          if (hits.length) {
+            let o = hits[0].object;
+            while (o && o !== scene) {
+              if (o === cardA) { pointerOn = 'cardA'; break; }
+              if (o === cardB) { pointerOn = 'cardB'; break; }
+              const ni = navCards.indexOf(o);
+              if (ni !== -1) { pointerOn = `nav${ni}`; break; }
+              o = o.parent;
+            }
+          }
+        }
+      }
+      canvas.classList.toggle('is-pointer', pointerOn !== null);
+
+      for (const card of [cardA, cardB]) {
+        const id = card === cardA ? 'cardA' : 'cardB';
+        card.userData.hoverTarget = pointerOn === id ? 1 : 0;
+        card.userData.hover += (card.userData.hoverTarget - card.userData.hover) * 0.12;
+      }
+      navCards.forEach((card, i) => {
+        card.userData.hoverTarget = pointerOn === `nav${i}` ? 1 : 0;
+        card.userData.hover += (card.userData.hoverTarget - card.userData.hover) * 0.12;
+      });
+    }
+
+    function applyToScene() {
+      // logo
+      logoTilt.rotation.x = cur.logoTiltX;
+      logoTilt.rotation.y = cur.logoTiltY;
+      logoSpin.rotation.y = cur.logoFlip;
+      logoPivot.position.x = cur.logoX;
+      logoPivot.position.y = cur.logoY;
+      logoPivot.scale.setScalar(cur.logoScale);
+      goldMaterial.emissiveIntensity = cur.emissive;
+
+      // swap full logo ↔ icon when the mesh is edge-on (≈90° into the flip),
+      // so the pop is hidden by the vanishing silhouette
+      const showIcon = Math.cos(cur.logoFlip) < 0;
+      if (logoFull.visible === showIcon) {
+        logoFull.visible = !showIcon;
+        logoIcon.visible = showIcon;
+      }
+
+      // download cards
+      cardBaseMaterial.opacity = cur.cardOpacity;
+      [cardA, cardB].forEach((card, i) => {
+        const p = layout.cardPositions[i];
+        const h = card.userData.hover;
+        card.position.x = p.x;
+        card.position.y = p.y - cur.cardYOffset + h * 8;
+        card.position.z = h * 18;
+        card.rotation.x = mouse.y * 0.12 + h * -0.05;
+        card.rotation.y = mouse.x * 0.18 + h * (i === 0 ? 0.04 : -0.04);
+        card.scale.setScalar(layout.cardScale * cur.cardScale * (1 + h * 0.03));
+        card.userData.decal.material.opacity = cur.cardOpacity;
+        card.userData.ring.material.opacity  = cur.cardOpacity * (0.15 + h * 0.35);
+      });
+
+      // nav cards
+      navCards.forEach((card, i) => {
+        const p = layout.navCardPositions[i];
+        const h = card.userData.hover;
+        card.position.set(p.x, p.y - cur.navCardYOffset + h * 5, h * 12);
+        card.rotation.x = mouse.y * 0.08 + h * -0.04;
+        card.rotation.y = mouse.x * 0.12 + h * (i === 0 ? 0.03 : i === 2 ? -0.03 : 0);
+        card.scale.setScalar(layout.navCardScale * (1 + h * 0.04));
+        card.userData.baseMat.opacity = cur.navCardOpacity;
+        card.userData.decal.material.opacity = cur.navCardOpacity;
+        card.userData.ring.material.opacity  = cur.navCardOpacity * (0.1 + h * 0.4);
+      });
+    }
+
+    function tick() {
+      const dt = Math.min(0.05, clock.getDelta());
+      time += dt;
+
+      if (state === STATE.IDLE) updateIdle(dt);
+      else if (state === STATE.FLIPPING) updateFlipping(dt);
+      else if (state === STATE.REVEALED) updateRevealed(dt);
+      else if (state === STATE.RETURNING) updateReturning(dt);
+
+      updateCardHover(dt);
+      applyToScene();
+
+      composer.render();
+    }
+    renderer.setAnimationLoop(tick);
 
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-
-    renderer.setAnimationLoop(() => {
-      controls.update();
-      const targetRotY = params.tiltEnabled ? mouse.x * 0.25 : 0;
-      const targetRotX = params.tiltEnabled ? mouse.y * 0.15 : 0;
-      pivot.rotation.y += (targetRotY - pivot.rotation.y) * 0.08;
-      pivot.rotation.x += (targetRotX - pivot.rotation.x) * 0.08;
-      renderer.render(scene, camera);
+      composer.setSize(window.innerWidth, window.innerHeight);
+      bloom.setSize(window.innerWidth, window.innerHeight);
+      layout = getLayout();
     });
   </script>
 </body>

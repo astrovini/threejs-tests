@@ -128,3 +128,57 @@ All three-space values are in the SVG's local coordinate units — the SVG viewB
 - Auto-rotate toggle.
 - Camera FOV slider.
 - Entrance animation (scale-in, stagger paths).
+
+---
+
+## `landing.html` — cinematic flip-reveal scene
+
+Interactive landing page: Faro logo flips on click and reveals download (App Store / Google Play) and nav (Blog / Legal / Contact) cards. Single file, same `three@0.160.0` importmap pattern.
+
+### Rendering gotchas (document so we don't re-solve them)
+
+**1. `EffectComposer` silently disables `antialias: true`.**
+The `WebGLRenderer({ antialias: true })` flag only applies to the default framebuffer. Once you route through `EffectComposer`, everything renders to an internal target with 0 samples. Fix: pass your own multisampled target.
+
+```js
+const dpr = renderer.getPixelRatio();
+const msaaTarget = new THREE.WebGLRenderTarget(
+  Math.floor(innerWidth * dpr),
+  Math.floor(innerHeight * dpr),
+  { samples: 4, type: THREE.HalfFloatType },
+);
+const composer = new EffectComposer(renderer, msaaTarget);
+composer.setPixelRatio(dpr);
+composer.setSize(innerWidth, innerHeight);
+```
+
+When you pass a custom target, `EffectComposer` uses `target.width/height` **as-is** — it does *not* multiply by pixel ratio like the default path does. Size the target in device pixels (× `dpr`), then call `setPixelRatio(dpr)` so subsequent resizes scale correctly. Otherwise retina renders at half resolution and looks pixelated.
+
+**2. `camera.near` controls depth precision at distance.**
+The perspective depth buffer has logarithmic precision — most of its resolution is packed near the near plane. With `near: 0.1` and the scene ~930 units from camera, 1 world unit resolved to ~5 discrete depth values, causing hash-line z-fighting through decals under MSAA. Push `near` as close to scene depth as you can without clipping — camera z=950, content at z≈0 → `near: 100` gives ~22,000× more precision in the range that matters.
+
+**3. `ExtrudeGeometry` bevels extend *outside* `[0, depth]`.**
+The front bevel tip sits at `depth + bevelThickness`, not at `depth`. When offsetting a decal forward of the card, clear the bevel tip, not the face. Rule of thumb: `decal.z = depth/2 + bevelThickness + comfortable_margin`. (Download cards use `+15` with bevelThickness=4; nav cards use `+10` with bevelThickness=2.)
+
+**4. `transparent: true` moves materials to the sort-unstable transparent queue.**
+The transparent queue is sorted back-to-front every frame by per-mesh camera distance. For a tilting group with base + decal, the sort can flip and the decal can render first — then the base paints over it. Mitigations:
+- Copy the logo pattern (opaque material) wherever possible. Opaque queue is stable.
+- `depthWrite: false` on a transparent decal is a footgun: if the sort flips, the decal writes no depth and the base overwrites it. Leave `depthWrite: true` (the default) unless you specifically need semi-transparent layering.
+- Once sitting on an opaque base, a single transparent decal plane has nothing to sort-fight with.
+
+**5. `UnrealBloomPass` threshold picks up anti-aliased edges.**
+A cream-colored icon (≈0.7 post-tonemap) at threshold 0.32 will pop in/out of bloom as sub-pixel edge coverage changes with the slightest camera tilt. Raise `threshold` above icon luminance (we use 0.85 — below the gold emissive pulse peak, above the decal cream) or darken the decal. Tuning bloom values is *not* a fix for z-fighting or sort flicker — diagnose those separately first.
+
+### Icon rendering
+
+Badge icons are drawn via `Path2D` fed SVG path data into a `CanvasTexture` (uploaded once). The Play Store icon uses the official 4-path multi-color mark (red `#EA4335`, yellow `#FBBC04`, green `#34A853`, blue `#4285F4`) — paths mirrored from `faro-web-page/src/components/HeroSection.tsx`. Apple stays monochrome per Apple's brand guidelines for dark backgrounds.
+
+### Interaction state machine
+
+Four states:
+- `IDLE` — logo centered, breathing emissive pulse.
+- `FLIPPING` — logo flips 180° and flies to top-left nav position; cards and nav cards fade + slide in staggered.
+- `REVEALED` — steady state; cards clickable.
+- `RETURNING` — reverse of flipping.
+
+The logo is two stacked groups (`logoFull` for the wordmark, `logoIcon` for the icon-only mark) that swap `visible` at 90° into the flip (`cos(flip) < 0`) — hiding the swap behind the edge-on silhouette.

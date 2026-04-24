@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Faro — enlighten your finances</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      color: #f0ebe0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow-x: hidden;
+    }
+
+    body {
+      background:
+        linear-gradient(
+          to bottom,
+          #020308 0%,
+          #08091e 20%,
+          #0f1438 45%,
+          #2a1d45 70%,
+          #5a2a3a 90%,
+          #8a4530 100%
+        );
+      min-height: 100vh;
+    }
+
+    #bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+    }
+
+    section {
+      min-height: 160vh;
+      padding: 12vh 8vw;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      max-width: 820px;
+    }
+
+    section.hero {
+      min-height: 100vh;
+    }
+
+    .two-col {
+      max-width: 1280px;
+      flex-direction: row;
+      align-items: center;
+      gap: 6vw;
+    }
+
+    .two-col-copy {
+      flex: 1 1 540px;
+      max-width: 560px;
+    }
+
+    .two-col-phone {
+      flex: 0 0 300px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    @media (max-width: 900px) {
+      .two-col {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4rem;
+      }
+      .two-col-phone {
+        flex: 0 0 auto;
+        align-self: center;
+      }
+    }
+
+    section.hero {
+      min-height: 100vh;
+      align-items: center;
+      justify-content: center;
+      max-width: none;
+      padding: 0;
+      position: relative;
+    }
+
+    .hero-title {
+      font-size: clamp(6rem, 22vw, 20rem);
+      font-weight: 900;
+      letter-spacing: -0.06em;
+      line-height: 0.88;
+      margin: 0;
+      text-align: center;
+      background:
+        linear-gradient(180deg, #ffffff 0%, #ffe6bd 38%, #ff9d5a 72%, #b83d1a 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter:
+        drop-shadow(0 0 50px rgba(255, 130, 60, 0.45))
+        drop-shadow(0 18px 60px rgba(255, 90, 40, 0.25));
+      transform: perspective(900px) rotateX(10deg);
+      transform-origin: center 70%;
+      user-select: none;
+      will-change: opacity, transform;
+      transition: opacity 0.12s linear;
+    }
+
+    section.hero .hint {
+      position: absolute;
+      bottom: 5vh;
+      left: 50%;
+      transform: translateX(-50%);
+      margin: 0;
+    }
+
+    .phone {
+      position: relative;
+      width: 300px;
+      height: 620px;
+      background: linear-gradient(145deg, #1a1a1f 0%, #07070a 100%);
+      border-radius: 46px;
+      padding: 12px;
+      box-shadow:
+        0 0 0 2px rgba(255, 255, 255, 0.04),
+        0 30px 80px rgba(0, 0, 0, 0.55),
+        0 60px 120px rgba(255, 120, 60, 0.08);
+    }
+
+    .phone::before {
+      content: "";
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 110px;
+      height: 30px;
+      background: #000;
+      border-radius: 20px;
+      z-index: 2;
+    }
+
+    .phone-screen {
+      width: 100%;
+      height: 100%;
+      border-radius: 34px;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(255, 180, 120, 0.18) 0%, transparent 55%),
+        linear-gradient(180deg, #14121f 0%, #0a0812 60%, #05040a 100%);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .phone-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 235, 200, 0.35);
+      font-size: 0.75rem;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    h1 {
+      font-size: clamp(2.8rem, 7vw, 5.5rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: 1.5rem;
+      background: linear-gradient(90deg, #fff 0%, #ffd28a 60%, #ff7a50 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    h2 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+      color: #f4ecd8;
+    }
+
+    p {
+      font-size: 1.1rem;
+      line-height: 1.75;
+      color: #c8b8a8;
+      max-width: 540px;
+    }
+
+    .eyebrow {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: #ffb478;
+      margin-bottom: 1rem;
+    }
+
+    .hint {
+      margin-top: 2rem;
+      font-size: 0.8rem;
+      color: #8a7a6a;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .cta {
+      display: inline-block;
+      margin-top: 2.25rem;
+      padding: 1rem 2rem;
+      background: linear-gradient(135deg, #ffd28a, #ff7a50);
+      color: #1a0f08;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      border-radius: 100px;
+      text-decoration: none;
+      box-shadow: 0 12px 34px rgba(255, 120, 60, 0.35);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 40px rgba(255, 120, 60, 0.5);
+    }
+
+    .progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 2px;
+      width: 0%;
+      background: linear-gradient(90deg, #ffd28a, #ff7a50);
+      z-index: 10;
+      box-shadow: 0 0 12px rgba(255, 180, 120, 0.7);
+      transition: width 0.08s linear;
+    }
+
+    .scroll-dot {
+      position: fixed;
+      right: 2rem;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .scroll-dot span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255, 235, 200, 0.22);
+      transition: all 0.3s ease;
+    }
+
+    .scroll-dot span.active {
+      background: #ffd28a;
+      box-shadow: 0 0 10px #ffd28a;
+      transform: scale(1.5);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <div class="progress" id="progress"></div>
+  <div class="scroll-dot" id="dots">
+    <span></span><span></span><span></span><span></span>
+  </div>
+
+  <main>
+    <section data-section="0" class="hero">
+      <h1 class="hero-title" id="heroTitle">Faro</h1>
+      <p class="hint">↓ scroll</p>
+    </section>
+
+    <section data-section="1">
+      <div class="eyebrow">Chapter 01</div>
+      <h2>When you can't see your money,<br/>you can't manage it.</h2>
+      <p>One lighthouse for your finances. Every floor reveals a different view.</p>
+    </section>
+
+    <section data-section="2">
+      <div class="eyebrow">Chapter 02</div>
+      <h2>Every window,<br/>a different view.</h2>
+      <p>Expenses. Portfolio. Investments. Accounts. One place, one light.</p>
+    </section>
+
+    <section data-section="3" class="two-col">
+      <div class="two-col-copy">
+        <div class="eyebrow">Chapter 03 — Step inside</div>
+        <h2>Faro is open.</h2>
+        <p>Your finances, newly illuminated.</p>
+        <a href="#" class="cta">Open the door</a>
+      </div>
+      <div class="two-col-phone">
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="phone-placeholder">app preview</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+    import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+    const canvas = document.getElementById('bg');
+
+    // ---------- Scene + renderer ----------
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x1a1530, 0.035);
+
+    const camera = new THREE.PerspectiveCamera(
+      55,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      200
+    );
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: true,
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+
+    // ---------- Materials ----------
+    const creamMat = new THREE.MeshStandardMaterial({
+      color: 0xf0e6d0, roughness: 0.85, metalness: 0.02,
+    });
+    const redMat = new THREE.MeshStandardMaterial({
+      color: 0xb43838, roughness: 0.7, metalness: 0.05,
+    });
+    const darkRedMat = new THREE.MeshStandardMaterial({
+      color: 0x5a1a20, roughness: 0.8, metalness: 0.05,
+    });
+    const stoneMat = new THREE.MeshStandardMaterial({
+      color: 0x4a4a55, roughness: 0.95, metalness: 0.02, flatShading: true,
+    });
+    const metalMat = new THREE.MeshStandardMaterial({
+      color: 0x2a2a2a, roughness: 0.4, metalness: 0.8,
+    });
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1210, roughness: 0.6, metalness: 0.3,
+    });
+    const windowMat = new THREE.MeshStandardMaterial({
+      color: 0xffdd88,
+      emissive: 0xffaa44,
+      emissiveIntensity: 3.5,
+      roughness: 0.2,
+    });
+    const lampMat = new THREE.MeshStandardMaterial({
+      color: 0xffeecc,
+      emissive: 0xffd080,
+      emissiveIntensity: 6,
+    });
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0xffe0a0,
+      transparent: true,
+      opacity: 0.18,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    // ---------- Lighthouse ----------
+    const lighthouse = new THREE.Group();
+    scene.add(lighthouse);
+
+    // Rocky base
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.8, 2.2, 1, 12, 1),
+      stoneMat
+    );
+    base.position.y = -0.5;
+    // Jitter vertices for rocky feel
+    {
+      const pos = base.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        pos.setX(i, pos.getX(i) + (Math.random() - 0.5) * 0.2);
+        pos.setZ(i, pos.getZ(i) + (Math.random() - 0.5) * 0.2);
+      }
+      pos.needsUpdate = true;
+      base.geometry.computeVertexNormals();
+    }
+    lighthouse.add(base);
+
+    // Tower (tapering cylinder)
+    const tower = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.85, 1.1, 7, 36),
+      creamMat
+    );
+    tower.position.y = 3.5;
+    lighthouse.add(tower);
+
+    // Red stripe rings
+    function stripe(y, radius) {
+      const ring = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius, radius, 0.45, 36),
+        redMat
+      );
+      ring.position.y = y;
+      lighthouse.add(ring);
+    }
+    stripe(2.0, 1.065);
+    stripe(5.0, 0.935);
+
+    // Door at base
+    const door = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.6, 1.1),
+      frameMat
+    );
+    door.position.set(0, 0.55, 1.11);
+    lighthouse.add(door);
+
+    // Porch lantern above the door
+    const lanternBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.06, 0.16, 8),
+      new THREE.MeshStandardMaterial({
+        color: 0xffd8a8,
+        emissive: 0xffaa66,
+        emissiveIntensity: 4.5,
+      })
+    );
+    lanternBody.position.set(0, 1.35, 1.13);
+    lighthouse.add(lanternBody);
+
+    const lanternShade = new THREE.Mesh(
+      new THREE.ConeGeometry(0.11, 0.08, 8),
+      metalMat
+    );
+    lanternShade.position.set(0, 1.48, 1.13);
+    lighthouse.add(lanternShade);
+
+    const lanternLight = new THREE.PointLight(0xffaa66, 1.5, 3, 1.6);
+    lanternLight.position.set(0, 1.35, 1.13);
+    lighthouse.add(lanternLight);
+
+    // ---------- Windows (spiraling up) ----------
+    const windows = [];
+    const windowConfigs = [
+      { y: 1.2, angle: 0 },
+      { y: 2.6, angle: Math.PI * (1 / 3) },
+      { y: 3.8, angle: Math.PI * (2 / 3) },
+      { y: 5.2, angle: Math.PI },
+      { y: 6.2, angle: Math.PI * (4 / 3) },
+      { y: 7.0, angle: Math.PI * (5 / 3) },
+    ];
+    windowConfigs.forEach((cfg) => {
+      // Tower radius interpolates from 1.1 (bottom) to 0.85 (top)
+      const t = (cfg.y - 0) / 7;
+      const r = 1.1 - (1.1 - 0.85) * t;
+
+      const frame = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.45, 0.08),
+        frameMat
+      );
+      const pane = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.22, 0.35),
+        windowMat.clone()
+      );
+      const g = new THREE.Group();
+      g.add(frame);
+      pane.position.z = 0.05;
+      g.add(pane);
+      g.position.set(
+        Math.cos(cfg.angle) * (r + 0.01),
+        cfg.y,
+        Math.sin(cfg.angle) * (r + 0.01)
+      );
+      g.lookAt(
+        Math.cos(cfg.angle) * 10,
+        cfg.y,
+        Math.sin(cfg.angle) * 10
+      );
+      lighthouse.add(g);
+      windows.push({ group: g, pane, angle: cfg.angle, y: cfg.y });
+    });
+
+    // ---------- Balcony ----------
+    const balcony = new THREE.Mesh(
+      new THREE.TorusGeometry(1.0, 0.08, 8, 32),
+      metalMat
+    );
+    balcony.rotation.x = Math.PI / 2;
+    balcony.position.y = 7.05;
+    lighthouse.add(balcony);
+
+    const balconyFloor = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.0, 1.0, 0.08, 32),
+      metalMat
+    );
+    balconyFloor.position.y = 7.0;
+    lighthouse.add(balconyFloor);
+
+    // Balcony rail posts
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.025, 0.35, 6),
+        metalMat
+      );
+      post.position.set(Math.cos(a) * 0.98, 7.22, Math.sin(a) * 0.98);
+      lighthouse.add(post);
+    }
+    // Top rail
+    const topRail = new THREE.Mesh(
+      new THREE.TorusGeometry(0.98, 0.025, 6, 32),
+      metalMat
+    );
+    topRail.rotation.x = Math.PI / 2;
+    topRail.position.y = 7.4;
+    lighthouse.add(topRail);
+
+    // ---------- Lamp room ----------
+    const lampRoom = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.7, 0.7, 1.0, 16, 1, true),
+      new THREE.MeshStandardMaterial({
+        color: 0x080808,
+        roughness: 0.4,
+        metalness: 0.6,
+        transparent: true,
+        opacity: 0.25,
+        side: THREE.DoubleSide,
+      })
+    );
+    lampRoom.position.y = 7.95;
+    lighthouse.add(lampRoom);
+
+    // Lamp room vertical frame bars
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const bar = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, 1.0, 0.05),
+        frameMat
+      );
+      bar.position.set(Math.cos(a) * 0.7, 7.95, Math.sin(a) * 0.7);
+      lighthouse.add(bar);
+    }
+
+    // Lamp room top and bottom rings
+    [7.45, 8.45].forEach((y) => {
+      const ring = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.72, 0.72, 0.06, 24),
+        metalMat
+      );
+      ring.position.y = y;
+      lighthouse.add(ring);
+    });
+
+    // The lamp itself (emissive)
+    const lamp = new THREE.Mesh(
+      new THREE.SphereGeometry(0.35, 24, 24),
+      lampMat
+    );
+    lamp.position.y = 7.95;
+    lighthouse.add(lamp);
+
+    // Rotating beam (a pivot group so we can spin it)
+    const beamPivot = new THREE.Group();
+    beamPivot.position.y = 7.95;
+    lighthouse.add(beamPivot);
+
+    function beamCone() {
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(2.2, 12, 16, 1, true),
+        beamMat
+      );
+      cone.rotation.z = Math.PI / 2;
+      cone.position.x = 6;
+      return cone;
+    }
+    const beamA = beamCone();
+    beamPivot.add(beamA);
+
+    // ---------- Roof ----------
+    const roof = new THREE.Mesh(
+      new THREE.ConeGeometry(0.85, 1.0, 16),
+      darkRedMat
+    );
+    roof.position.y = 8.95;
+    lighthouse.add(roof);
+
+    // Finial
+    const finialRod = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 0.35, 8),
+      metalMat
+    );
+    finialRod.position.y = 9.62;
+    lighthouse.add(finialRod);
+    const finialBall = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 12, 12),
+      metalMat
+    );
+    finialBall.position.y = 9.82;
+    lighthouse.add(finialBall);
+
+    // ---------- Ocean plane ----------
+    const ocean = new THREE.Mesh(
+      new THREE.PlaneGeometry(200, 200, 1, 1),
+      new THREE.MeshStandardMaterial({
+        color: 0x0a0c1a,
+        roughness: 0.3,
+        metalness: 0.5,
+      })
+    );
+    ocean.rotation.x = -Math.PI / 2;
+    ocean.position.y = -1;
+    scene.add(ocean);
+
+    // ---------- Starfield ----------
+    const starCount = 1200;
+    const starPositions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      const r = 40 + Math.random() * 60;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(Math.random() * 0.9 + 0.05); // keep stars in upper hemisphere
+      starPositions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+      starPositions[i * 3 + 1] = Math.abs(r * Math.cos(phi)) + 2;
+      starPositions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    }
+    const starGeom = new THREE.BufferGeometry();
+    starGeom.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    const stars = new THREE.Points(
+      starGeom,
+      new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.25,
+        sizeAttenuation: true,
+        transparent: true,
+        opacity: 0.7,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      })
+    );
+    scene.add(stars);
+
+    // ---------- Lights ----------
+    scene.add(new THREE.AmbientLight(0x3a3050, 0.35));
+
+    // Moonlight key
+    const moon = new THREE.DirectionalLight(0x9abaff, 0.7);
+    moon.position.set(-6, 10, -4);
+    scene.add(moon);
+
+    // Warm horizon fill (setting sun glow)
+    const horizon = new THREE.DirectionalLight(0xff8a4a, 0.5);
+    horizon.position.set(8, 2, 5);
+    scene.add(horizon);
+
+    // Warm point light inside the lamp (lights the lamp room bars + top of tower)
+    const lampLight = new THREE.PointLight(0xffd080, 3, 8, 1.5);
+    lampLight.position.set(0, 7.95, 0);
+    scene.add(lampLight);
+
+    // ---------- Post-processing ----------
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      1.1,   // strength
+      0.7,   // radius
+      0.55   // threshold (only bright things glow)
+    );
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+
+    // ---------- Interaction state ----------
+    const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
+    window.addEventListener('mousemove', (e) => {
+      mouse.tx = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.ty = (e.clientY / window.innerHeight) * 2 - 1;
+    });
+
+    let scrollProgress = 0;
+    let smoothScroll = 0;
+    const progressBar = document.getElementById('progress');
+    const dots = [...document.getElementById('dots').querySelectorAll('span')];
+    const sectionCount = dots.length;
+    const heroTitle = document.getElementById('heroTitle');
+
+    function clampScroll01(x) { return Math.max(0, Math.min(1, x)); }
+
+    function updateScroll() {
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      scrollProgress = maxScroll > 0 ? window.scrollY / maxScroll : 0;
+      progressBar.style.width = `${scrollProgress * 100}%`;
+      const active = Math.min(
+        sectionCount - 1,
+        Math.floor(scrollProgress * sectionCount + 0.15)
+      );
+      dots.forEach((d, i) => d.classList.toggle('active', i === active));
+      // Hero title fades out as we leave beat 1
+      const titleFade = 1 - clampScroll01((scrollProgress - 0.04) / 0.12);
+      heroTitle.style.opacity = titleFade.toFixed(3);
+    }
+    window.addEventListener('scroll', updateScroll, { passive: true });
+    updateScroll();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ---------- Camera path: cinematic 6-beat script ----------
+    // Pre-spiral: Before the light → Spark → Reveal → Approach → Enter spiral
+    const SPIRAL_START = 0.40;
+    const SPIRAL_END = 0.86;
+
+    const PRE_WAYPOINTS = [
+      { p: 0.00, c: [ 0.0, 5.0, 14],  l: [ 0.0, 5.0, 0.0] }, // Beat 1: lighthouse framed centered behind HTML "Faro" title
+      { p: 0.12, c: [-1.5, 5.5, 15],  l: [ 0.5, 5.2, 0.0] }, // Beat 2: title fades, camera drifts
+      { p: 0.22, c: [-2.5, 5.5, 16],  l: [ 1.0, 5.0, 0.0] }, // Beat 3: Wide reveal
+      { p: 0.32, c: [ 3.0, 8.8, 4],   l: [ 0.0, 7.95, 0.0] }, // Beat 4: Approach
+      { p: 0.40, c: [ 2.2, 9.0, 0],   l: [ 0.0, 7.95, 0.0] }, // Enter spiral
+    ];
+    const POST_WAYPOINTS = [
+      { p: 0.86, c: [ 2.2, 1.2, 0],  l: [ 0.0, 2.0, 0.0] },  // Exit spiral
+      { p: 1.00, c: [-3.5, 1.8, 4],  l: [ 2.5, 2.5, 0.0] },  // Beat 6: door on left, phone on right
+    ];
+
+    function smoothstep(t) { return t * t * (3 - 2 * t); }
+    function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    function lerpWaypoints(progress, waypoints) {
+      let i = 0;
+      while (i < waypoints.length - 2 && waypoints[i + 1].p <= progress) i++;
+      const a = waypoints[i];
+      const b = waypoints[i + 1];
+      const t = smoothstep(clamp01((progress - a.p) / (b.p - a.p)));
+      return {
+        cx: lerp(a.c[0], b.c[0], t),
+        cy: lerp(a.c[1], b.c[1], t),
+        cz: lerp(a.c[2], b.c[2], t),
+        lx: lerp(a.l[0], b.l[0], t),
+        ly: lerp(a.l[1], b.l[1], t),
+        lz: lerp(a.l[2], b.l[2], t),
+      };
+    }
+
+    function placeCamera(progress) {
+      let pos;
+      if (progress < SPIRAL_START) {
+        pos = lerpWaypoints(progress, PRE_WAYPOINTS);
+      } else if (progress > SPIRAL_END) {
+        pos = lerpWaypoints(progress, POST_WAYPOINTS);
+      } else {
+        const p = (progress - SPIRAL_START) / (SPIRAL_END - SPIRAL_START);
+        const theta = p * Math.PI * 2;
+        const radius = 2.2 + Math.sin(p * Math.PI) * 2.3;
+        const y = 9 - p * 8;
+        pos = {
+          cx: Math.cos(theta) * radius,
+          cy: y,
+          cz: Math.sin(theta) * radius,
+          lx: 0,
+          ly: p < 0.05 ? 7.95 : y - 0.4,
+          lz: 0,
+        };
+      }
+      camera.position.set(
+        pos.cx + mouse.x * 0.4,
+        pos.cy + mouse.y * -0.2,
+        pos.cz
+      );
+      camera.lookAt(pos.lx, pos.ly, pos.lz);
+    }
+    placeCamera(scrollProgress);
+
+    // ---------- Animation ----------
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+
+      smoothScroll += (scrollProgress - smoothScroll) * 0.06;
+      mouse.x += (mouse.tx - mouse.x) * 0.05;
+      mouse.y += (mouse.ty - mouse.y) * 0.05;
+
+      // Beam rotation — slower so the sweep across the letters reads clearly
+      beamPivot.rotation.y = t * 0.6;
+
+      // Lamp + beam always on; gentle pulse
+      lampMat.emissiveIntensity = 5.5 + Math.sin(t * 2) * 0.4;
+
+
+
+      // Window glow ramps up when camera is close (angular + vertical proximity)
+      windows.forEach((w) => {
+        const cameraAngle = Math.atan2(camera.position.z, camera.position.x);
+        let dAng = Math.abs(cameraAngle - (w.angle % (Math.PI * 2)));
+        dAng = Math.min(dAng, Math.PI * 2 - dAng);
+        const angleFactor = Math.max(0, 1 - dAng / (Math.PI * 0.8));
+        const dY = Math.abs(camera.position.y - w.y);
+        const yFactor = Math.max(0, 1 - dY / 4);
+        const proximity = angleFactor * yFactor;
+        w.pane.material.emissiveIntensity = 1.2 + proximity * 5;
+      });
+
+      // Spiral camera path
+      placeCamera(smoothScroll);
+
+      // Stars drift
+      stars.rotation.y = t * 0.005;
+
+      composer.render();
+    }
+    animate();
+  </script>
+</body>
+</html>

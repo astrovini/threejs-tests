@@ -135,9 +135,9 @@
     composer.addPass(new RenderPass(scene, camera));
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      0.55,  // strength
-      0.5,   // radius
-      0.18,  // threshold
+      0.22,  // strength
+      0.4,   // radius
+      0.38,  // threshold — only the brightest pixels bloom
     );
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
@@ -169,36 +169,47 @@
     logoTilt.add(logoSpin);
     scene.add(logoPivot);
 
-    const logoGroup = new THREE.Group();
-    logoGroup.scale.y = -1;
-    logoSpin.add(logoGroup);
+    const logoFull = new THREE.Group();   // faro_logo.svg — front face
+    const logoIcon = new THREE.Group();   // faro_icon.svg — back face (post-flip)
+    logoSpin.add(logoFull);
+    logoSpin.add(logoIcon);
+    logoIcon.visible = false;
 
     const TARGET_LOGO_HEIGHT = 480;
+    const EXTRUDE_OPTS = {
+      depth: 110,
+      bevelEnabled: true,
+      bevelThickness: 18,
+      bevelSize: 14,
+      bevelOffset: 0,
+      bevelSegments: 16,
+      curveSegments: 48,
+      steps: 1,
+    };
 
-    new SVGLoader().load('faro_logo.svg', (data) => {
-      for (const path of data.paths) {
-        for (const shape of SVGLoader.createShapes(path)) {
-          const geom = new THREE.ExtrudeGeometry(shape, {
-            depth: 110,
-            bevelEnabled: true,
-            bevelThickness: 18,
-            bevelSize: 14,
-            bevelOffset: 0,
-            bevelSegments: 16,
-            curveSegments: 48,
-            steps: 1,
-          });
-          logoGroup.add(new THREE.Mesh(geom, goldMaterial));
+    function loadLogoInto(url, outerGroup) {
+      // outerGroup → inner (Y-flipped for SVG coords) → meshes.
+      // Each SVG is fit independently to TARGET_LOGO_HEIGHT so the in-flight swap is seamless.
+      const inner = new THREE.Group();
+      inner.scale.y = -1;
+      outerGroup.add(inner);
+      new SVGLoader().load(url, (data) => {
+        for (const path of data.paths) {
+          for (const shape of SVGLoader.createShapes(path)) {
+            const geom = new THREE.ExtrudeGeometry(shape, EXTRUDE_OPTS);
+            inner.add(new THREE.Mesh(geom, goldMaterial));
+          }
         }
-      }
-      // center + scale to target height
-      const box = new THREE.Box3().setFromObject(logoGroup);
-      const center = box.getCenter(new THREE.Vector3());
-      const size = box.getSize(new THREE.Vector3());
-      logoGroup.position.set(-center.x, -center.y, -center.z);
-      const s = TARGET_LOGO_HEIGHT / size.y;
-      logoSpin.scale.setScalar(s);
-    });
+        const box = new THREE.Box3().setFromObject(inner);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        inner.position.set(-center.x, -center.y, -center.z);
+        outerGroup.scale.setScalar(TARGET_LOGO_HEIGHT / size.y);
+      });
+    }
+
+    loadLogoInto('faro_logo.svg', logoFull);
+    loadLogoInto('faro_icon.svg', logoIcon);
 
     // ---------- cards ----------
     function roundedRectShape(w, h, r) {
@@ -447,7 +458,7 @@
       cur.logoTiltX += (targetX - cur.logoTiltX) * 0.07;
 
       // emissive pulse — slow heartbeat
-      const pulse = 0.08 + Math.sin(time * 1.2) * 0.04 + 0.04;
+      const pulse = 0.05 + Math.sin(time * 1.2) * 0.025 + 0.025;
       cur.emissive += (pulse - cur.emissive) * 0.05;
 
       // ease back to home transform
@@ -472,8 +483,8 @@
       // lerp tilt back to neutral so the flip stays clean
       cur.logoTiltX += (0 - cur.logoTiltX) * 0.15;
       cur.logoTiltY += (0 - cur.logoTiltY) * 0.15;
-      // emissive flares during flip
-      const flare = 0.08 + Math.sin(t * Math.PI) * 0.5;
+      // subtle emissive lift during flip — nothing dramatic
+      const flare = 0.08 + Math.sin(t * Math.PI) * 0.18;
       cur.emissive += (flare - cur.emissive) * 0.15;
 
       const ct = clamp01((t - 0.45) / 0.55);
@@ -496,7 +507,7 @@
       cur.cardOpacity += (1 - cur.cardOpacity) * 0.1;
       cur.cardScale += (1 - cur.cardScale) * 0.1;
       cur.cardYOffset += (0 - cur.cardYOffset) * 0.1;
-      cur.emissive += (0.16 - cur.emissive) * 0.05;
+      cur.emissive += (0.1 - cur.emissive) * 0.05;
     }
 
     function updateReturning(dt) {
@@ -547,6 +558,14 @@
       logoPivot.position.y = cur.logoY;
       logoPivot.scale.setScalar(cur.logoScale);
       goldMaterial.emissiveIntensity = cur.emissive;
+
+      // swap full logo ↔ icon when the mesh is edge-on (≈90° into the flip),
+      // so the pop is hidden by the vanishing silhouette
+      const showIcon = Math.cos(cur.logoFlip) < 0;
+      if (logoFull.visible === showIcon) {
+        logoFull.visible = !showIcon;
+        logoIcon.visible = showIcon;
+      }
 
       // cards — apply layout positions plus hover lift
       const positions = [layout.cardPositions[0], layout.cardPositions[1]];
